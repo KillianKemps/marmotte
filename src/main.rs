@@ -1,6 +1,5 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write};
-use std::str::from_utf8;
 
 fn main() {
   println!("Welcome to rs-gopher-client");
@@ -14,13 +13,11 @@ fn main() {
       stream.write(msg).unwrap();
       println!("Sent /, awaiting reply...");
 
-      //let mut buffer = String::new();
-      let mut buffer = Vec::new();
+      let mut buffer = String::new();
 
-      match stream.read_to_end(&mut buffer) {
+      match stream.read_to_string(&mut buffer) {
         Ok(_) => {
-          let text = from_utf8(&buffer).unwrap();
-          println!("response: {}", text);
+          println!("response:\n{}", &buffer);
         },
         Err(e) => {
           println!("Failed to receive data: {}", e);
