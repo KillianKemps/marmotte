@@ -1,23 +1,30 @@
 use std::net::{TcpStream};
-use std::io::{Read, Write};
+use std::io::{Read, Write, stdin};
 
 fn main() {
   println!("Welcome to rs-gopher-client");
-  let server = "khzae.net";
+  println!("Please enter server:");
+
+  let mut server = String::new();
+  stdin().read_line(&mut server)
+    .expect("Failed to read line");
+
+  server = server.trim().to_string();
+
+  println!("\nConnecting to {}...", server);
   match TcpStream::connect(format!("{}:70", server)) {
     Ok(mut stream) => {
-      println!("Connected to {}!", server);
+      println!("Connected!\n");
 
       let msg = b"/\r\n";
 
       stream.write(msg).unwrap();
-      println!("Sent /, awaiting reply...");
 
       let mut buffer = String::new();
 
       match stream.read_to_string(&mut buffer) {
         Ok(_) => {
-          println!("response:\n{}", &buffer);
+          println!("{}", &buffer);
         },
         Err(e) => {
           println!("Failed to receive data: {}", e);
