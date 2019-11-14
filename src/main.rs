@@ -46,12 +46,12 @@ fn main() {
     command = String::from(command.trim());
 
     let mut url = GopherURL::new();
-    if command.contains("go") {
+    if command.contains("get") {
       match command.get(3..) {
         Some(contains) => {
           url = GopherURL::from(&contains);
         },
-        None => println!("Does not contain go"),
+        None => println!("Does not contain get"),
       }
     }
     else if command.contains("quit") {
@@ -59,6 +59,9 @@ fn main() {
         break;
     }
     else {
+      println!("Please enter one of following command:\n\
+                \tget [url]: Get to this url\n\
+                \tquit: Quit this program");
       continue;
     }
 
