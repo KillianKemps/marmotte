@@ -54,6 +54,7 @@ struct GopherMenuLine {
 }
 
 impl GopherMenuLine {
+  #[allow(dead_code)]
   fn new() -> GopherMenuLine {
     GopherMenuLine {
       r#type: String::new(),
@@ -92,6 +93,7 @@ struct GopherMenuResponse {
 }
 
 impl GopherMenuResponse {
+  #[allow(dead_code)]
   fn new() -> GopherMenuResponse {
     GopherMenuResponse {
       lines: Vec::new(),
@@ -100,7 +102,6 @@ impl GopherMenuResponse {
 
   fn from(response: &str) -> GopherMenuResponse {
     let mut lines = Vec::new();
-    let mut gopherline = GopherMenuLine::new();
 
     for line in response.split("\n").collect::<Vec<&str>>() {
       // dot indicates end of response
@@ -108,7 +109,7 @@ impl GopherMenuResponse {
         break;
       }
 
-      gopherline = GopherMenuLine::from(line);
+      let gopherline = GopherMenuLine::from(line);
       lines.push(gopherline);
     }
 
@@ -162,19 +163,18 @@ impl GopherResponse {
       },
       GopherResponse::Menu(response) => {
         for (index, line) in response.lines.iter().enumerate() {
-          let mut resource_type = "";
           match &line.r#type[..] {
             "0" => {
-              resource_type = "TXT";
+              let resource_type = "TXT";
               println!("{}\t[{}]\t{}", resource_type, index, line.description);
             },
             "1" => {
-              resource_type = "MENU";
+              let resource_type = "MENU";
               println!("{}\t[{}]\t{}/", resource_type, index, line.description);
             },
             _ => {
               if line.r#type != "i" {
-                resource_type = "OTHER";
+                let resource_type = "OTHER";
                 println!("{}\t[{}]\t{}", resource_type, index, line.description);
               }
               else {
