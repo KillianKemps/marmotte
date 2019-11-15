@@ -105,7 +105,7 @@ impl GopherMenuResponse {
 
     for line in response.split("\n").collect::<Vec<&str>>() {
       // dot indicates end of response
-      if line.starts_with(".") || line == "" {
+      if line.starts_with(".") || line.trim() == "" {
         break;
       }
 
