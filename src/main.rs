@@ -34,6 +34,15 @@ impl GopherURL {
   fn get_server(&self) -> String {
     return format!("{}:{}", &self.host, &self.port);
   }
+
+  fn get_url(&self) -> Option<String> {
+    if &self.host == "" {
+      return None;
+    }
+    else {
+      return Some(format!("{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector));
+    }
+  }
 }
 
 struct GopherMenuLine {
@@ -67,6 +76,15 @@ impl GopherMenuLine {
       port: captures.get(5).map_or("", |m| m.as_str()).to_string(),
     }
   }
+
+  fn get_url(&self) -> String {
+    if &self.host == "" {
+      return String::new();
+    }
+    else {
+      return format!("{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector);
+    }
+  }
 }
 
 struct GopherMenuResponse {
@@ -98,31 +116,6 @@ impl GopherMenuResponse {
       lines,
     }
   }
-
-  fn display(&self) {
-    for (index, line) in self.lines.iter().enumerate() {
-      let mut resource_type = "";
-      match &line.r#type[..] {
-        "0" => {
-          resource_type = "TXT";
-          println!("{}\t[{}]\t{}", resource_type, index, line.description);
-        },
-        "1" => {
-          resource_type = "MENU";
-          println!("{}\t[{}]\t{}/", resource_type, index, line.description);
-        },
-        _ => {
-          resource_type = "OTHER";
-          if line.selector != "" {
-            println!("{}\t[{}]\t{}", resource_type, index, line.description);
-          }
-          else {
-            println!("\t\t{}", line.description);
-          }
-        },
-      }
-    }
-  }
 }
 
 struct GopherDefaultResponse {
@@ -152,18 +145,69 @@ impl GopherDefaultResponse {
       lines,
     }
   }
+}
 
+enum GopherResponse {
+  Default(GopherDefaultResponse),
+  Menu(GopherMenuResponse),
+}
+
+impl GopherResponse {
   fn display(&self) {
-    for line in &self.lines {
-      println!("{}", line);
+    match &self {
+      GopherResponse::Default(response) => {
+        for line in &response.lines {
+          println!("{}", line);
+        }
+      },
+      GopherResponse::Menu(response) => {
+        for (index, line) in response.lines.iter().enumerate() {
+          let mut resource_type = "";
+          match &line.r#type[..] {
+            "0" => {
+              resource_type = "TXT";
+              println!("{}\t[{}]\t{}", resource_type, index, line.description);
+            },
+            "1" => {
+              resource_type = "MENU";
+              println!("{}\t[{}]\t{}/", resource_type, index, line.description);
+            },
+            _ => {
+              if line.r#type != "i" {
+                resource_type = "OTHER";
+                println!("{}\t[{}]\t{}", resource_type, index, line.description);
+              }
+              else {
+                println!("\t\t{}", line.description);
+              }
+            },
+          }
+        }
+      }
+    }
+  }
+
+  fn get_link_url(&self, link_idx: &str) -> Option<String> {
+    let index:usize = link_idx.parse().unwrap();
+    match &self {
+      GopherResponse::Default(_response) => None,
+      GopherResponse::Menu(response) => {
+        let link = &response.lines[index];
+        Some(link.get_url())
+      }
     }
   }
 }
 
 fn main() {
-  println!("Welcome to rs-gopher-client");
+  println!("Welcome to rs-gopher-client!");
 
+  let mut url = GopherURL::new();
+  let mut response: GopherResponse = GopherResponse::Default(GopherDefaultResponse::new());
   loop {
+    if let Some(full_url) = url.get_url() {
+      println!("\nCurrent page: {}", full_url);
+    }
     println!("Please enter command:");
 
     let mut command = String::new();
@@ -172,27 +216,52 @@ fn main() {
 
     command = String::from(command.trim());
 
-    let mut url = GopherURL::new();
-    if command.contains("get") {
+    if command.starts_with("get ") {
       match command.get(3..) {
-        Some(contains) => {
-          url = GopherURL::from(&contains);
+        Some(content) => {
+          url = GopherURL::from(&content);
         },
-        None => println!("Does not contain get"),
+        None => {
+          println!("Was expecting get [url]");
+        },
       }
     }
-    else if command.contains("quit") {
+    else if command.starts_with("f ") {
+      match command.get(2..) {
+        Some(content) => {
+          match &response.get_link_url(&content) {
+            Some(link_url) => {
+              url = GopherURL::from(&link_url);
+            },
+            None => {
+              println!("Seems there is no link in the current document");
+              continue;
+            },
+          }
+        },
+        None => {
+          println!("Was expecting f [id]");
+        },
+      }
+    }
+    else if command.starts_with("quit") {
       println!("Terminated.");
       break;
     }
     else {
       println!("Please enter one of following command:\n\
-                \tget [url]: Get to this url\n\
+                \tget [url]: Get this url\n\
+                \tf [index]: Follow link index\n\
                 \tquit: Quit this program");
       continue;
     }
 
-    println!("\nConnecting to {}...", url.get_server());
+    if let Some(full_url) = url.get_url() {
+      println!("\nGetting {}...", full_url);
+    }
+    else {
+      break;
+    }
     match TcpStream::connect(url.get_server()) {
       Ok(mut stream) => {
         println!("Connected!\n");
@@ -205,13 +274,12 @@ fn main() {
           Ok(_) => {
             // Parse Gopher menu according to Gopher selector
             if url.r#type == "1" {
-              let response = GopherMenuResponse::from(&buffer);
-              response.display();
+              response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
             }
             else {
-              let response = GopherDefaultResponse::from(&buffer);
-              response.display();
+              response = GopherResponse::Default(GopherDefaultResponse::from(&buffer));
             }
+            response.display();
           },
           Err(e) => {
             println!("Failed to receive data: {}", e);
