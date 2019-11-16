@@ -103,7 +103,7 @@ impl GopherMenuResponse {
   fn from(response: &str) -> GopherMenuResponse {
     let mut lines = Vec::new();
 
-    for line in response.split("\n").collect::<Vec<&str>>() {
+    for line in response.split("\r\n").collect::<Vec<&str>>() {
       // dot indicates end of response
       if line.starts_with(".") || line.trim() == "" {
         break;
