@@ -244,21 +244,14 @@ fn main() {
         },
       }
     }
-    else if command.starts_with("f ") {
-      match command.get(2..) {
-        Some(content) => {
-          match &response.get_link_url(&content) {
-            Some(link_url) => {
-              url = GopherURL::from(&link_url);
-            },
-            None => {
-              println!("Seems there is no link in the current document");
-              continue;
-            },
-          }
+    else if command.starts_with(char::is_numeric) {
+      match &response.get_link_url(&command) {
+        Some(link_url) => {
+          url = GopherURL::from(&link_url);
         },
         None => {
-          println!("Was expecting f [id]");
+          println!("Seems there is no link in the current document");
+          continue;
         },
       }
     }
@@ -278,9 +271,9 @@ fn main() {
       break;
     }
     else {
-      println!("Please enter one of following command:\n\
+      println!("Please enter one of the following commands:\n\
                 \tget [url]: Get this url\n\
-                \tf [index]: Follow link index\n\
+                \t[index]: Follow link index\n\
                 \tup: Go up one directory\n\
                 \tquit: Quit this program");
       continue;
