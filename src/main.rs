@@ -43,6 +43,24 @@ impl GopherURL {
       return Some(format!("{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector));
     }
   }
+
+  fn get_url_parent_selector(&self) -> Option<String> {
+    if &self.host == "" {
+      return None;
+    }
+    // This means we are at the server root, so no parent.
+    else if &self.selector == "/" {
+      return None;
+    }
+    else {
+      match self.selector.rfind("/") {
+        Some(idx) => {
+          return Some(format!("{}:{}/{}{}", &self.host, &self.port, "1", &self.selector[..idx]));
+        },
+        None => None,
+      }
+    }
+  }
 }
 
 struct GopherMenuLine {
@@ -244,6 +262,17 @@ fn main() {
         },
       }
     }
+    else if command == "up" {
+      match url.get_url_parent_selector() {
+        Some(parent_url) => {
+          url = GopherURL::from(&parent_url);
+        },
+        None => {
+          println!("Seems there is no parent for this document");
+          continue;
+        },
+      }
+    }
     else if command.starts_with("quit") {
       println!("Terminated.");
       break;
@@ -252,12 +281,13 @@ fn main() {
       println!("Please enter one of following command:\n\
                 \tget [url]: Get this url\n\
                 \tf [index]: Follow link index\n\
+                \tup: Go up one directory\n\
                 \tquit: Quit this program");
       continue;
     }
 
     if let Some(full_url) = url.get_url() {
-      println!("\nGetting {}...", full_url);
+      println!("\nGetting {}...\r", full_url);
     }
     else {
       break;
