@@ -64,6 +64,7 @@ impl GopherURL {
   }
 }
 
+#[derive(Debug)]
 struct GopherMenuLine {
   r#type: String,
   description: String,
@@ -374,8 +375,8 @@ mod tests_gopher_url {
     );
     // get_url()
     assert_eq!(
-      "zaibatsu.circumlunar.space:70/1/~solderpunk".to_string(),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url().unwrap()
+      Some("zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url()
     );
   }
 
@@ -393,18 +394,105 @@ mod tests_gopher_url {
     );
     // Menu parent for a text resource
     assert_eq!(
-      "zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string(),
-      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt").get_url_parent_selector().unwrap()
+      Some("zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
+      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt").get_url_parent_selector()
     );
     // Menu parent for a menu resource
     assert_eq!(
-      "zaibatsu.circumlunar.space:70/1/~solderpunk".to_string(),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog").get_url_parent_selector().unwrap()
+      Some("zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog").get_url_parent_selector()
     );
     // Root menu parent for a menu resource
     assert_eq!(
-      "zaibatsu.circumlunar.space:70/1".to_string(),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector().unwrap()
+      Some("zaibatsu.circumlunar.space:70/1".to_string()),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector()
+    );
+  }
+}
+
+#[cfg(test)]
+mod tests_gopher_menu_line {
+  use super::*;
+
+  impl PartialEq for GopherMenuLine {
+    fn eq(&self, other: &Self) -> bool {
+      self.host == other.host &&
+      self.port == other.port &&
+      self.r#type == other.r#type &&
+      self.selector == other.selector &&
+      self.description == other.description
+    }
+  }
+
+  #[test]
+  fn should_import_any_menu_line() {
+    let mut expected = GopherMenuLine {
+      host: "gopher.floodgap.com".to_string(),
+      port: "70".to_string(),
+      r#type: "1".to_string(),
+      selector: "/home".to_string(),
+      description: "Floodgap Home".to_string()
+    };
+    // Menu line
+    assert_eq!(expected, GopherMenuLine::from("1Floodgap Home	/home	gopher.floodgap.com	70"));
+
+    expected = GopherMenuLine {
+      host: "error.host".to_string(),
+      port: "1".to_string(),
+      r#type: "i".to_string(),
+      selector: "".to_string(),
+      description: "              ,-.      .-,".to_string()
+    };
+    // Information line with graphics
+    assert_eq!(expected, GopherMenuLine::from("i              ,-.      .-,		error.host	1"));
+
+    expected = GopherMenuLine {
+      host: "error.host".to_string(),
+      port: "1".to_string(),
+      r#type: "i".to_string(),
+      selector: "".to_string(),
+      description: "Find movie showtimes by postal code/zip.".to_string()
+    };
+    // Information line with text
+    assert_eq!(expected, GopherMenuLine::from("iFind movie showtimes by postal code/zip.		error.host	1"));
+
+    expected = GopherMenuLine {
+      host: "khzae.net".to_string(),
+      port: "70".to_string(),
+      r#type: "0".to_string(),
+      selector: "/rfc1436.txt".to_string(),
+      description: "RFC 1436 (gopher protocol)".to_string()
+    };
+    // Text resource line
+    assert_eq!(expected, GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70"));
+
+    expected = GopherMenuLine {
+      host: "khzae.net".to_string(),
+      port: "70".to_string(),
+      r#type: "7".to_string(),
+      selector: "/dict/search".to_string(),
+      description: "Search dictionary".to_string()
+    };
+    // Search resource line
+    assert_eq!(expected, GopherMenuLine::from("7Search dictionary	/dict/search	khzae.net	70"));
+
+    expected = GopherMenuLine {
+      host: "host2".to_string(),
+      port: "70".to_string(),
+      r#type: "0".to_string(),
+      selector: "moo selector".to_string(),
+      description: "Some file or other".to_string()
+    };
+    // Gopher+ Text resource line
+    assert_eq!(expected, GopherMenuLine::from("0Some file or other	moo selector	host2	70	+"));
+  }
+
+  #[test]
+  fn should_return_formatted_attributes() {
+    // get_url()
+    assert_eq!(
+      "khzae.net:70/0/rfc1436.txt".to_string(),
+      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").get_url()
     );
   }
 }
