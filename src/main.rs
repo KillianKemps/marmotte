@@ -72,17 +72,6 @@ struct GopherMenuLine {
 }
 
 impl GopherMenuLine {
-  #[allow(dead_code)]
-  fn new() -> GopherMenuLine {
-    GopherMenuLine {
-      r#type: String::new(),
-      description: String::new(),
-      selector: String::new(),
-      host: String::new(),
-      port: String::new(),
-    }
-  }
-
   fn from(line: &str) -> GopherMenuLine {
     let re = Regex::new(r"^([a-z0-9])([^\t]*)?\t([^\t]*)?\t([^\t]*)?\t([0-9]*)?").unwrap();
     let captures = re.captures(&line).unwrap();
