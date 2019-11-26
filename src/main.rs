@@ -137,18 +137,18 @@ impl GopherMenuResponse {
   }
 }
 
-struct GopherDefaultResponse {
+struct GopherTextResponse {
   lines: Vec<String>,
 }
 
-impl GopherDefaultResponse {
-  fn new() -> GopherDefaultResponse {
-    GopherDefaultResponse {
+impl GopherTextResponse {
+  fn new() -> GopherTextResponse {
+    GopherTextResponse {
       lines: Vec::new(),
     }
   }
 
-  fn from(response: &str) -> GopherDefaultResponse {
+  fn from(response: &str) -> GopherTextResponse {
     let mut lines = Vec::new();
 
     for line in response.split("\n").collect::<Vec<&str>>() {
@@ -160,21 +160,21 @@ impl GopherDefaultResponse {
       lines.push(line.to_string());
     }
 
-    GopherDefaultResponse {
+    GopherTextResponse {
       lines,
     }
   }
 }
 
 enum GopherResponse {
-  Default(GopherDefaultResponse),
+  Text(GopherTextResponse),
   Menu(GopherMenuResponse),
 }
 
 impl GopherResponse {
   fn display(&self) {
     match &self {
-      GopherResponse::Default(response) => {
+      GopherResponse::Text(response) => {
         for line in &response.lines {
           println!("{}", line);
         }
@@ -208,7 +208,7 @@ impl GopherResponse {
   fn get_link_url(&self, link_idx: &str) -> Option<String> {
     let index:usize = link_idx.parse().unwrap();
     match &self {
-      GopherResponse::Default(_response) => None,
+      GopherResponse::Text(_response) => None,
       GopherResponse::Menu(response) => {
         let link = &response.lines[index];
         Some(link.get_url())
@@ -221,7 +221,7 @@ fn main() {
   println!("Welcome to rs-gopher-client!");
 
   let mut url = GopherURL::new();
-  let mut response: GopherResponse = GopherResponse::Default(GopherDefaultResponse::new());
+  let mut response: GopherResponse = GopherResponse::Text(GopherTextResponse::new());
   loop {
     if let Some(full_url) = url.get_url() {
       println!("\nCurrent page: {}", full_url);
@@ -300,7 +300,7 @@ fn main() {
               response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
             }
             else {
-              response = GopherResponse::Default(GopherDefaultResponse::from(&buffer));
+              response = GopherResponse::Text(GopherTextResponse::from(&buffer));
             }
             response.display();
           },
