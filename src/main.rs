@@ -248,14 +248,7 @@ fn main() {
     command = String::from(command.trim());
 
     if command.starts_with("get ") {
-      match command.get(3..) {
-        Some(content) => {
-          url = GopherURL::from(&content);
-        },
-        None => {
-          println!("Was expecting get [url]");
-        },
-      }
+      url = GopherURL::from(&command[4..]);
     }
     else if command.starts_with(char::is_numeric) {
       match &response.get_link_url(&command) {
