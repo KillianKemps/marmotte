@@ -121,31 +121,33 @@ impl GopherMenuLine {
 
 struct GopherMenuResponse {
   lines: Vec<GopherMenuLine>,
+  links: Vec<usize>,
 }
 
 impl GopherMenuResponse {
-  #[allow(dead_code)]
-  fn new() -> GopherMenuResponse {
-    GopherMenuResponse {
-      lines: Vec::new(),
-    }
-  }
-
   fn from(response: &str) -> GopherMenuResponse {
     let mut lines = Vec::new();
+    let mut links = Vec::new();
 
-    for line in response.split("\r\n").collect::<Vec<&str>>() {
+    for (index, line) in response.split("\r\n").enumerate() {
       // dot indicates end of response
       if line.starts_with(".") || line.trim() == "" {
         break;
       }
 
       let gopherline = GopherMenuLine::from(line);
+
+      // We detect lines which are links and push them into dedicated vector
+      if ["0".to_string(), "1".to_string()].contains(&gopherline.r#type) {
+        links.push(index);
+      }
+
       lines.push(gopherline);
     }
 
     GopherMenuResponse {
       lines,
+      links,
     }
   }
 }
@@ -197,11 +199,15 @@ impl GopherResponse {
           match &line.r#type[..] {
             "0" => {
               let resource_type = "TXT";
-              println!("{}\t[{}]\t{}", resource_type, index, line.description);
+              // We increase the link index by 1 for a more user-friendly display
+              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
+              println!("{}\t[{}]\t{}", resource_type, displayed_index.to_string(), line.description);
             },
             "1" => {
               let resource_type = "MENU";
-              println!("{}\t[{}]\t{}/", resource_type, index, line.description);
+              // We increase the link index by 1 for a more user-friendly display
+              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
+              println!("{}\t[{}]\t{}/", resource_type, displayed_index.to_string(), line.description);
             },
             "i" => {
               println!("\t\t{}", line.description);
@@ -217,12 +223,25 @@ impl GopherResponse {
   }
 
   fn get_link_url(&self, link_idx: &str) -> Option<String> {
-    let index:usize = link_idx.parse().unwrap();
-    match &self {
-      GopherResponse::Text(_response) => None,
-      GopherResponse::Menu(response) => {
-        let link = &response.lines[index];
-        Some(link.get_url())
+    // Note: Index given by the user has been increased by 1 for a more user-friendly display
+    let idx = link_idx.parse::<usize>();
+    match idx {
+      Ok(index) => {
+        match &self { GopherResponse::Text(_response) => None,
+          GopherResponse::Menu(response) => {
+            // Check if the given index is out of bounds
+            if index == 0 || response.links.len() < index {
+              return None;
+            }
+            let link_pointer:usize = response.links[index - 1];
+            let link = &response.lines[link_pointer];
+            return Some(link.get_url())
+          }
+        }
+      },
+      Err(_error) => {
+        // May happen when index is negative
+        return None;
       }
     }
   }
@@ -506,6 +525,65 @@ mod tests_gopher_menu_line {
     assert_eq!(
       "gopher://khzae.net:70/0/rfc1436.txt".to_string(),
       GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").get_url()
+    );
+  }
+}
+
+#[cfg(test)]
+mod tests_gopher_menu_response {
+  use super::*;
+
+  #[test]
+  fn should_return_right_link() {
+    let response = "\
+isome test		error.host	1\r\n\
+i 		error.host	1\r\n\
+1About	/about	khzae.net	70\r\n\
+i 		error.host	1\r\n\
+1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
+0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
+.";
+    let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
+    assert_eq!(
+      Some("gopher://khzae.net:70/1/about".to_string()),
+      parsed_response.get_link_url("1")
+    );
+    assert_eq!(
+      Some("gopher://sdf.org:70/1/".to_string()),
+      parsed_response.get_link_url("2")
+    );
+    assert_eq!(
+      Some("gopher://khzae.net:70/0/rfc4266.txt".to_string()),
+      parsed_response.get_link_url("3")
+    );
+  }
+
+  #[test]
+  fn should_return_none_when_link_out_of_bounds() {
+    let response = "\
+isome test		error.host	1\r\n\
+i 		error.host	1\r\n\
+1About	/about	khzae.net	70\r\n\
+i 		error.host	1\r\n\
+1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
+0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
+.";
+    let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
+    assert_eq!(
+      None,
+      parsed_response.get_link_url("-10")
+    );
+    assert_eq!(
+      None,
+      parsed_response.get_link_url("0")
+    );
+    assert_eq!(
+      None,
+      parsed_response.get_link_url("4")
+    );
+    assert_eq!(
+      None,
+      parsed_response.get_link_url("20")
     );
   }
 }
