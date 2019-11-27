@@ -272,8 +272,8 @@ fn main() {
         },
       }
     }
-    else if command.starts_with("quit") {
-      println!("Terminated.");
+    else if command == "quit" {
+      println!("Goodbye!");
       break;
     }
     else {
