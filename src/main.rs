@@ -75,15 +75,14 @@ struct GopherMenuLine {
 
 impl GopherMenuLine {
   fn from(line: &str) -> GopherMenuLine {
-    let re = Regex::new(r"^([a-z0-9])([^\t]*)?\t([^\t]*)?\t([^\t]*)?\t([0-9]*)?").unwrap();
-    let captures = re.captures(&line).unwrap();
+    let splitted_elements: Vec<&str> = line.split("\t").collect();
 
     GopherMenuLine {
-      r#type: captures.get(1).map_or("i", |m| m.as_str()).to_string(),
-      description: captures.get(2).map_or("", |m| m.as_str()).to_string(),
-      selector: captures.get(3).map_or("", |m| m.as_str()).to_string(),
-      host: captures.get(4).map_or("", |m| m.as_str()).to_string(),
-      port: captures.get(5).map_or("", |m| m.as_str()).to_string(),
+      r#type: splitted_elements[0][0..1].to_string(),
+      description: splitted_elements[0][1..].to_string(),
+      selector: splitted_elements[1].to_string(),
+      host: splitted_elements[2].to_string(),
+      port: splitted_elements[3].to_string()
     }
   }
 
