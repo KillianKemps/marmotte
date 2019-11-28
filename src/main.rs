@@ -247,14 +247,49 @@ impl GopherResponse {
   }
 }
 
+fn manage_url_request(url: GopherURL, history: &mut Vec<GopherURL>, response: &mut GopherResponse) {
+  match TcpStream::connect(url.get_server()) {
+    Ok(mut stream) => {
+      println!("Connected!\n");
+
+      stream.write(format!("{}\r\n", url.selector).as_bytes()).unwrap();
+
+      let mut buffer = String::new();
+
+      match stream.read_to_string(&mut buffer) {
+        Ok(_) => {
+          // Parse Gopher menu according to Gopher selector
+          if url.r#type == "1" {
+            *response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
+          }
+          else {
+            *response = GopherResponse::Text(GopherTextResponse::from(&buffer));
+          }
+          response.display();
+          // Insert displayed page to history
+          history.insert(0, url);
+        },
+        Err(e) => {
+          println!("Failed to receive data: {}", e);
+        }
+      }
+    },
+    Err(e) => {
+      println!("Failed to connect: {}", e);
+    }
+  }
+}
+
 fn main() {
   println!("Welcome to rs-gopher-client!");
 
-  let mut url = GopherURL::new();
-  let mut response: GopherResponse = GopherResponse::Text(GopherTextResponse::new());
+  let mut history: Vec<GopherURL> = Vec::new();
+  let mut last_response: GopherResponse = GopherResponse::Text(GopherTextResponse::new());
   loop {
-    if let Some(full_url) = url.get_url() {
-      println!("\nCurrent page: {}", full_url);
+    if let Some(last_url) = history.get(0) {
+      if let Some(full_url) = last_url.get_url() {
+        println!("\nCurrent page: {}", full_url);
+      }
     }
     println!("Please enter command:");
 
@@ -265,12 +300,14 @@ fn main() {
     command = String::from(command.trim());
 
     if command.starts_with("get ") {
-      url = GopherURL::from(&command[4..]);
+      let url = GopherURL::from(&command[4..]);
+      manage_url_request(url, &mut history, &mut last_response);
     }
     else if command.starts_with(char::is_numeric) {
-      match &response.get_link_url(&command) {
+      match &last_response.get_link_url(&command) {
         Ok(link_url) => {
-          url = GopherURL::from(&link_url);
+          let url = GopherURL::from(&link_url);
+          manage_url_request(url, &mut history, &mut last_response);
         },
         Err(msg) => {
           println!("{}", msg);
@@ -279,14 +316,40 @@ fn main() {
       }
     }
     else if command == "up" {
-      match url.get_url_parent_selector() {
-        Some(parent_url) => {
-          url = GopherURL::from(&parent_url);
+      match history.get(0) {
+        Some(last_url) => {
+          match last_url.get_url_parent_selector() {
+            Some(parent_url) => {
+              let url = GopherURL::from(&parent_url);
+              manage_url_request(url, &mut history, &mut last_response);
+            },
+            None => {
+              println!("Seems there is no parent for this document");
+              continue;
+            },
+          }
         },
         None => {
-          println!("Seems there is no parent for this document");
+          println!("There is no current document");
           continue;
+        }
+      }
+    }
+    else if command == "back" {
+      // Get second-to-last url
+      match history.get(1) {
+        Some(_) => {
+          // Remove second-to-last url
+          let previous_url = history.remove(1);
+          // Remove last url
+          history.remove(0);
+          // Load previous url
+          manage_url_request(previous_url, &mut history, &mut last_response);
         },
+        None => {
+          println!("There is no previous document to go back");
+          continue;
+        }
       }
     }
     else if command == "quit" {
@@ -298,44 +361,9 @@ fn main() {
                 \tget [url]: Get this url\n\
                 \t[index]: Follow link index\n\
                 \tup: Go up one directory\n\
+                \tback: Go back previous page\n\
                 \tquit: Quit this program");
       continue;
-    }
-
-    if let Some(full_url) = url.get_url() {
-      println!("\nGetting {}...\r", full_url);
-    }
-    else {
-      break;
-    }
-    match TcpStream::connect(url.get_server()) {
-      Ok(mut stream) => {
-        println!("Connected!\n");
-
-        stream.write(format!("{}\r\n", url.selector).as_bytes()).unwrap();
-
-        let mut buffer = String::new();
-
-        match stream.read_to_string(&mut buffer) {
-          Ok(_) => {
-            // Parse Gopher menu according to Gopher selector
-            if url.r#type == "1" {
-              response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
-            }
-            else {
-              response = GopherResponse::Text(GopherTextResponse::from(&buffer));
-            }
-            response.display();
-          },
-          Err(e) => {
-            println!("Failed to receive data: {}", e);
-          }
-        }
-      },
-
-      Err(e) => {
-        println!("Failed to connect: {}", e);
-      }
     }
   }
 }
