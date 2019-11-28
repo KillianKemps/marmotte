@@ -222,26 +222,26 @@ impl GopherResponse {
     }
   }
 
-  fn get_link_url(&self, link_idx: &str) -> Option<String> {
+  fn get_link_url(&self, link_idx: &str) -> Result<String, String> {
     // Note: Index given by the user has been increased by 1 for a more user-friendly display
     let idx = link_idx.parse::<usize>();
     match idx {
       Ok(index) => {
-        match &self { GopherResponse::Text(_response) => None,
+        match &self { GopherResponse::Text(_response) => Err("There is no link in the current document".to_string()),
           GopherResponse::Menu(response) => {
             // Check if the given index is out of bounds
             if index == 0 || response.links.len() < index {
-              return None;
+              return Err("Given index is out of bounds".to_string());
             }
             let link_pointer:usize = response.links[index - 1];
             let link = &response.lines[link_pointer];
-            return Some(link.get_url())
+            return Ok(link.get_url())
           }
         }
       },
       Err(_error) => {
         // May happen when index is negative
-        return None;
+        return Err("Link index can't be negative".to_string());
       }
     }
   }
@@ -269,11 +269,11 @@ fn main() {
     }
     else if command.starts_with(char::is_numeric) {
       match &response.get_link_url(&command) {
-        Some(link_url) => {
+        Ok(link_url) => {
           url = GopherURL::from(&link_url);
         },
-        None => {
-          println!("Seems there is no link in the current document");
+        Err(msg) => {
+          println!("{}", msg);
           continue;
         },
       }
@@ -545,15 +545,15 @@ i 		error.host	1\r\n\
 .";
     let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
     assert_eq!(
-      Some("gopher://khzae.net:70/1/about".to_string()),
+      Ok("gopher://khzae.net:70/1/about".to_string()),
       parsed_response.get_link_url("1")
     );
     assert_eq!(
-      Some("gopher://sdf.org:70/1/".to_string()),
+      Ok("gopher://sdf.org:70/1/".to_string()),
       parsed_response.get_link_url("2")
     );
     assert_eq!(
-      Some("gopher://khzae.net:70/0/rfc4266.txt".to_string()),
+      Ok("gopher://khzae.net:70/0/rfc4266.txt".to_string()),
       parsed_response.get_link_url("3")
     );
   }
@@ -570,19 +570,19 @@ i 		error.host	1\r\n\
 .";
     let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
     assert_eq!(
-      None,
+      Err("Link index can\'t be negative".to_string()),
       parsed_response.get_link_url("-10")
     );
     assert_eq!(
-      None,
+      Err("Given index is out of bounds".to_string()),
       parsed_response.get_link_url("0")
     );
     assert_eq!(
-      None,
+      Err("Given index is out of bounds".to_string()),
       parsed_response.get_link_url("4")
     );
     assert_eq!(
-      None,
+      Err("Given index is out of bounds".to_string()),
       parsed_response.get_link_url("20")
     );
   }
