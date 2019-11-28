@@ -2,6 +2,7 @@ use std::net::{TcpStream};
 use std::io::{Read, Write, stdin};
 use regex::Regex;
 
+#[derive(Debug)]
 struct GopherURL {
   host: String,
   port: String,
@@ -27,7 +28,7 @@ impl GopherURL {
       host: captures.get(2).map_or("", |m| m.as_str()).to_string(),
       port: captures.get(3).map_or("70", |m| m.as_str()).to_string(),
       r#type: captures.get(4).map_or("/1", |m| m.as_str())[1..].to_string(),
-      selector: captures.get(5).map_or("/", |m| m.as_str()).to_string(),
+      selector: captures.get(5).map_or("", |m| m.as_str()).to_string(),
     }
   }
 
@@ -49,7 +50,7 @@ impl GopherURL {
       return None;
     }
     // This means we are at the server root, so no parent.
-    else if &self.selector == "/" {
+    else if &self.selector == "" {
       return None;
     }
     else {
@@ -303,5 +304,107 @@ fn main() {
         println!("Failed to connect: {}", e);
       }
     }
+  }
+}
+
+#[cfg(test)]
+mod tests_gopher_url {
+  use super::*;
+
+  impl PartialEq for GopherURL {
+    fn eq(&self, other: &Self) -> bool {
+      self.host == other.host &&
+      self.port == other.port &&
+      self.r#type == other.r#type &&
+      self.selector == other.selector
+    }
+  }
+
+  #[test]
+  fn should_import_any_valid_url() {
+    let mut expected = GopherURL {
+      host: "zaibatsu.circumlunar.space".to_string(),
+      port: "70".to_string(),
+      r#type: "1".to_string(),
+      selector: "/~solderpunk/".to_string()
+    };
+    // Complete Gopher URL
+    assert_eq!(expected, GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/"));
+    // Without gopher://
+    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space:70/1/~solderpunk/"));
+    // With gopher:// but without port number
+    assert_eq!(expected, GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk/"));
+    // Without gopher:// and without port number
+    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space/1/~solderpunk/"));
+
+    expected = GopherURL {
+      host: "zaibatsu.circumlunar.space".to_string(),
+      port: "70".to_string(),
+      r#type: "1".to_string(),
+      selector: "".to_string()
+    };
+    // Hostname only
+    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space"));
+
+    expected = GopherURL {
+      host: "zaibatsu.circumlunar.space".to_string(),
+      port: "70".to_string(),
+      r#type: "0".to_string(),
+      selector: "/~solderpunk/phlog/project-gemini.txt".to_string()
+    };
+    // Text resource URL
+    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt"));
+
+    expected = GopherURL {
+      host: "khzae.net".to_string(),
+      port: "105".to_string(),
+      r#type: "1".to_string(),
+      selector: "/".to_string()
+    };
+    // Non-standard port
+    assert_eq!(expected, GopherURL::from("khzae.net:105/1/"));
+  }
+
+  #[test]
+  fn should_return_formatted_attributes() {
+    // get_server()
+    assert_eq!(
+      "zaibatsu.circumlunar.space:70".to_string(),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/").get_server()
+    );
+    // get_url()
+    assert_eq!(
+      "zaibatsu.circumlunar.space:70/1/~solderpunk".to_string(),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url().unwrap()
+    );
+  }
+
+  #[test]
+  fn should_return_parent_selector_option() {
+    // None when already at root even with resource type
+    assert_eq!(
+      None,
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1").get_url_parent_selector()
+    );
+    // None when already at root
+    assert_eq!(
+      None,
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70").get_url_parent_selector()
+    );
+    // Menu parent for a text resource
+    assert_eq!(
+      "zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string(),
+      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt").get_url_parent_selector().unwrap()
+    );
+    // Menu parent for a menu resource
+    assert_eq!(
+      "zaibatsu.circumlunar.space:70/1/~solderpunk".to_string(),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog").get_url_parent_selector().unwrap()
+    );
+    // Root menu parent for a menu resource
+    assert_eq!(
+      "zaibatsu.circumlunar.space:70/1".to_string(),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector().unwrap()
+    );
   }
 }
