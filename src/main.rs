@@ -64,7 +64,7 @@ impl GopherURL {
       return None;
     }
     else {
-      return Some(format!("{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector));
+      return Some(format!("gopher://{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector));
     }
   }
 
@@ -79,7 +79,7 @@ impl GopherURL {
     else {
       match self.selector.rfind("/") {
         Some(idx) => {
-          return Some(format!("{}:{}/{}{}", &self.host, &self.port, "1", &self.selector[..idx]));
+          return Some(format!("gopher://{}:{}/{}{}", &self.host, &self.port, "1", &self.selector[..idx]));
         },
         None => None,
       }
@@ -114,7 +114,7 @@ impl GopherMenuLine {
       return String::new();
     }
     else {
-      return format!("{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector);
+      return format!("gopher://{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector);
     }
   }
 }
@@ -390,7 +390,7 @@ mod tests_gopher_url {
     );
     // get_url()
     assert_eq!(
-      Some("zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
+      Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
       GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url()
     );
   }
@@ -409,17 +409,17 @@ mod tests_gopher_url {
     );
     // Menu parent for a text resource
     assert_eq!(
-      Some("zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
+      Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
       GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt").get_url_parent_selector()
     );
     // Menu parent for a menu resource
     assert_eq!(
-      Some("zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
+      Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
       GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog").get_url_parent_selector()
     );
     // Root menu parent for a menu resource
     assert_eq!(
-      Some("zaibatsu.circumlunar.space:70/1".to_string()),
+      Some("gopher://zaibatsu.circumlunar.space:70/1".to_string()),
       GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector()
     );
   }
@@ -506,7 +506,7 @@ mod tests_gopher_menu_line {
   fn should_return_formatted_attributes() {
     // get_url()
     assert_eq!(
-      "khzae.net:70/0/rfc1436.txt".to_string(),
+      "gopher://khzae.net:70/0/rfc1436.txt".to_string(),
       GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").get_url()
     );
   }
