@@ -1,6 +1,5 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write, stdin};
-use regex::Regex;
 
 #[derive(Debug)]
 struct GopherURL {
@@ -14,22 +13,46 @@ impl GopherURL {
   fn new() -> GopherURL {
     GopherURL {
       host: String::new(),
-      port: String::new(),
-      r#type: String::new(),
+      port: String::from("70"),
+      r#type: String::from("1"),
       selector: String::new(),
     }
   }
 
   fn from(url: &str) -> GopherURL {
-    let re = Regex::new(r"(gopher://)?([a-zA-Z0-9.]+):?([0-9]+)?(/[a-z0-9]+)?([a-zA-Z0-9/.~\-_]+)?").unwrap();
-    let captures = re.captures(url).unwrap();
-
-    GopherURL {
-      host: captures.get(2).map_or("", |m| m.as_str()).to_string(),
-      port: captures.get(3).map_or("70", |m| m.as_str()).to_string(),
-      r#type: captures.get(4).map_or("/1", |m| m.as_str())[1..].to_string(),
-      selector: captures.get(5).map_or("", |m| m.as_str()).to_string(),
+    let mut parsed_url = url;
+    // Remove scheme from URL when included
+    if url.starts_with("gopher://") {
+      parsed_url = &url[9..];
     }
+
+    // Create GopherURL variable to receive the URL
+    let mut parsed_gopher_url = GopherURL::new();
+    // Split URL on "/" in three first elements
+    let url_elements: Vec<&str> = parsed_url.splitn(3, "/").collect();
+
+    // Get host from URL and port if specified
+    // If the URL contains a ":", it means the port is specified
+    if url_elements[0].contains(":") {
+      let port_idx = url_elements[0].find(":").unwrap();
+      parsed_gopher_url.host = url_elements[0][0..port_idx].to_string();
+      parsed_gopher_url.port = url_elements[0][port_idx + 1..].to_string();
+    }
+    else {
+      parsed_gopher_url.host = url_elements[0].to_string();
+    }
+
+    // Get resource type if specified
+    if let Some(elm) = url_elements.get(1) {
+      parsed_gopher_url.r#type = elm.to_string();
+    }
+
+    // Get selector if specified
+    if let Some(elm) = url_elements.get(2) {
+      // Concatenate "/" which has been removed by the previous .split()
+      parsed_gopher_url.selector = "/".to_owned() + &elm.to_string();
+    }
+    return parsed_gopher_url
   }
 
   fn get_server(&self) -> String {
