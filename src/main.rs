@@ -100,8 +100,27 @@ impl GopherMenuResponse {
   }
 
   fn display(&self) {
-    for line in &self.lines {
-      println!("{}{}\t{}\t{}\t{}", line.r#type, line.description, line.selector, line.host, line.port);
+    for (index, line) in self.lines.iter().enumerate() {
+      let mut resource_type = "";
+      match &line.r#type[..] {
+        "0" => {
+          resource_type = "TXT";
+          println!("{}\t[{}]\t{}", resource_type, index, line.description);
+        },
+        "1" => {
+          resource_type = "MENU";
+          println!("{}\t[{}]\t{}/", resource_type, index, line.description);
+        },
+        _ => {
+          resource_type = "OTHER";
+          if line.selector != "" {
+            println!("{}\t[{}]\t{}", resource_type, index, line.description);
+          }
+          else {
+            println!("\t\t{}", line.description);
+          }
+        },
+      }
     }
   }
 }
