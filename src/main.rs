@@ -203,14 +203,12 @@ impl GopherResponse {
               let resource_type = "MENU";
               println!("{}\t[{}]\t{}/", resource_type, index, line.description);
             },
+            "i" => {
+              println!("\t\t{}", line.description);
+            },
             _ => {
-              if line.r#type != "i" {
-                let resource_type = "OTHER";
-                println!("{}\t[{}]\t{}", resource_type, index, line.description);
-              }
-              else {
-                println!("\t\t{}", line.description);
-              }
+              let resource_type = "UNKNOWN";
+              println!("{}\t\t{}", resource_type, line.description);
             },
           }
         }
