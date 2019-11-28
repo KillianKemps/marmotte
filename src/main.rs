@@ -77,7 +77,7 @@ impl GopherURL {
       return None;
     }
     else {
-      match self.selector.rfind("/") {
+      match self.selector.trim_end_matches('/').rfind("/") {
         Some(idx) => {
           return Some(format!("gopher://{}:{}/{}{}", &self.host, &self.port, "1", &self.selector[..idx]));
         },
@@ -466,6 +466,11 @@ mod tests_gopher_url {
     assert_eq!(
       Some("gopher://zaibatsu.circumlunar.space:70/1".to_string()),
       GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector()
+    );
+    // Root menu parent for a menu resource
+    assert_eq!(
+      Some("gopher://zaibatsu.circumlunar.space:70/1".to_string()),
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/").get_url_parent_selector()
     );
   }
 }
