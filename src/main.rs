@@ -1,6 +1,8 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write, stdin};
 
+const SOFTWARE_NAME: &str = "marmotte";
+
 #[derive(Debug)]
 struct GopherURL {
   host: String,
@@ -321,7 +323,7 @@ impl ClientState {
 }
 
 fn main() {
-  println!("Welcome to rs-gopher-client!");
+  println!("Welcome to {}!", SOFTWARE_NAME.to_string());
 
   let mut state = ClientState {
     history: Vec::new(),

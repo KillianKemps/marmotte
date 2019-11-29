@@ -1,4 +1,4 @@
-# rs-gopher-client WIP project
+# Marmotte
 
 This Gopher client written in Rust will be kept minimalistic.
 
