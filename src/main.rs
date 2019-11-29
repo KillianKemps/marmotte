@@ -247,7 +247,7 @@ impl GopherResponse {
   }
 }
 
-fn manage_url_request(url: GopherURL, history: &mut Vec<GopherURL>, response: &mut GopherResponse) {
+fn manage_url_request(url: GopherURL, state: &mut ClientState) {
   match TcpStream::connect(url.get_server()) {
     Ok(mut stream) => {
       println!("Connected!\n");
@@ -260,14 +260,14 @@ fn manage_url_request(url: GopherURL, history: &mut Vec<GopherURL>, response: &m
         Ok(_) => {
           // Parse Gopher menu according to Gopher selector
           if url.r#type == "1" {
-            *response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
+            state.last_response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
           }
           else {
-            *response = GopherResponse::Text(GopherTextResponse::from(&buffer));
+            state.last_response = GopherResponse::Text(GopherTextResponse::from(&buffer));
           }
-          response.display();
+          state.last_response.display();
           // Insert displayed page to history
-          history.insert(0, url);
+          state.history.insert(0, url);
         },
         Err(e) => {
           println!("Failed to receive data: {}", e);
@@ -280,13 +280,56 @@ fn manage_url_request(url: GopherURL, history: &mut Vec<GopherURL>, response: &m
   }
 }
 
+struct ClientState {
+  history: Vec<GopherURL>,
+  last_response: GopherResponse
+}
+
+impl ClientState {
+  // Get back URL and update history
+  // We update the history because we are going back and rewriting it
+  // We remove the back URL because it will be put to history again after being requested
+  fn prepare_going_back(&mut self) -> Result<GopherURL, String> {
+    // Get second-to-last url
+    match self.history.get(1) {
+      Some(_) => {
+        // Remove second-to-last url
+        let previous_url = self.history.remove(1);
+        // Remove last url
+        self.history.remove(0);
+        return Ok(previous_url);
+      },
+      None => {
+        return Err("There is no previous document to go back".to_string());
+      }
+    }
+  }
+
+  // Get back URL and send request
+  fn go_back(&mut self) -> Result<String, String> {
+    match self.prepare_going_back() {
+      Ok(previous_url) => {
+        // Load previous url
+        manage_url_request(previous_url, self);
+        return Ok("Went back to previous document".to_string());
+      },
+      Err(msg) => {
+        return Err(msg);
+      }
+    }
+  }
+}
+
 fn main() {
   println!("Welcome to rs-gopher-client!");
 
-  let mut history: Vec<GopherURL> = Vec::new();
-  let mut last_response: GopherResponse = GopherResponse::Text(GopherTextResponse::new());
+  let mut state = ClientState {
+    history: Vec::new(),
+    last_response: GopherResponse::Text(GopherTextResponse::new())
+  };
+
   loop {
-    if let Some(last_url) = history.get(0) {
+    if let Some(last_url) = state.history.get(0) {
       if let Some(full_url) = last_url.get_url() {
         println!("\nCurrent page: {}", full_url);
       }
@@ -301,13 +344,13 @@ fn main() {
 
     if command.starts_with("get ") {
       let url = GopherURL::from(&command[4..]);
-      manage_url_request(url, &mut history, &mut last_response);
+      manage_url_request(url, &mut state);
     }
     else if command.starts_with(char::is_numeric) {
-      match &last_response.get_link_url(&command) {
+      match &state.last_response.get_link_url(&command) {
         Ok(link_url) => {
           let url = GopherURL::from(&link_url);
-          manage_url_request(url, &mut history, &mut last_response);
+          manage_url_request(url, &mut state);
         },
         Err(msg) => {
           println!("{}", msg);
@@ -316,12 +359,12 @@ fn main() {
       }
     }
     else if command == "up" {
-      match history.get(0) {
+      match state.history.get(0) {
         Some(last_url) => {
           match last_url.get_url_parent_selector() {
             Some(parent_url) => {
               let url = GopherURL::from(&parent_url);
-              manage_url_request(url, &mut history, &mut last_response);
+              manage_url_request(url, &mut state);
             },
             None => {
               println!("Seems there is no parent for this document");
@@ -336,20 +379,12 @@ fn main() {
       }
     }
     else if command == "back" {
-      // Get second-to-last url
-      match history.get(1) {
-        Some(_) => {
-          // Remove second-to-last url
-          let previous_url = history.remove(1);
-          // Remove last url
-          history.remove(0);
-          // Load previous url
-          manage_url_request(previous_url, &mut history, &mut last_response);
-        },
-        None => {
-          println!("There is no previous document to go back");
+      match state.go_back() {
+        Ok(_msg) => {},
+        Err(msg) => {
+          println!("{}", msg);
           continue;
-        }
+        },
       }
     }
     else if command == "quit" {
@@ -618,5 +653,38 @@ i 		error.host	1\r\n\
       Err("Given index is out of bounds".to_string()),
       parsed_response.get_link_url("20")
     );
+  }
+}
+
+#[cfg(test)]
+mod tests_state {
+  use super::*;
+
+  #[test]
+  fn should_prepare_going_back() {
+    // Set initial state
+    let current_page = GopherURL::from("gopher://khzae.net");
+    let mut state = ClientState {
+      history: Vec::new(),
+      last_response: GopherResponse::Text(GopherTextResponse::new())
+    };
+    state.history.insert(0, current_page);
+    state.history.insert(1, GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk"));
+    state.history.insert(2, GopherURL::from("gopher://zaibatsu.circumlunar.space"));
+
+    // Set expected state
+    let expected_last_page_history = GopherURL::from("gopher://zaibatsu.circumlunar.space");
+    let expected_previous_url = GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk");
+    let mut expected_state = ClientState {
+      history: Vec::new(),
+      last_response: GopherResponse::Text(GopherTextResponse::new())
+    };
+    expected_state.history.push(expected_last_page_history);
+
+    // Get back url
+    let previous_url = state.prepare_going_back();
+
+    assert_eq!(expected_state.history, state.history);
+    assert_eq!(Ok(expected_previous_url), previous_url);
   }
 }
