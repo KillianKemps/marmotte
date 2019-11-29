@@ -1,5 +1,5 @@
 [package]
-name = "rs-gopher-client"
+name = "marmotte"
 version = "0.1.0"
 authors = ["Killian Kemps <developer@killiankemps.fr>"]
 edition = "2018"
