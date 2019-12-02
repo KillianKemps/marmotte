@@ -1,10 +1,12 @@
 use std::env;
+use std::fs::{File, OpenOptions};
+use std::io::{BufReader, ErrorKind, Read, Write, stdin};
 use std::net::{TcpStream};
-use std::io::{Read, Write, stdin};
+use std::path::Path;
 
 const SOFTWARE_NAME: &str = "marmotte";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct GopherURL {
   host: String,
   port: String,
@@ -90,7 +92,7 @@ impl GopherURL {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct GopherMenuLine {
   r#type: String,
   description: String,
@@ -122,6 +124,7 @@ impl GopherMenuLine {
   }
 }
 
+#[derive(Clone)]
 struct GopherMenuResponse {
   lines: Vec<GopherMenuLine>,
   links: Vec<usize>,
@@ -155,6 +158,7 @@ impl GopherMenuResponse {
   }
 }
 
+#[derive(Clone)]
 struct GopherTextResponse {
   lines: Vec<String>,
 }
@@ -184,6 +188,7 @@ impl GopherTextResponse {
   }
 }
 
+#[derive(Clone)]
 enum GopherResponse {
   Text(GopherTextResponse),
   Menu(GopherMenuResponse),
@@ -283,7 +288,9 @@ fn manage_url_request(url: GopherURL, state: &mut ClientState) {
   }
 }
 
+#[derive(Clone)]
 struct ClientState {
+  bookmarks: Vec<GopherURL>,
   history: Vec<GopherURL>,
   last_response: GopherResponse
 }
@@ -321,15 +328,119 @@ impl ClientState {
       }
     }
   }
+
+  fn open_bookmarks(&mut self, write: bool) -> Result<std::fs::File, String> {
+    // Use HOME variable to locate bookmarks
+    match env::var("HOME") {
+      Ok(home) => {
+        let bookmarks_location = format!("{}/.{}/bookmarks.txt", home, SOFTWARE_NAME);
+        let bookmarks_file = if write {
+          OpenOptions::new().write(true).truncate(true).open(&bookmarks_location)
+        }
+        else {
+          File::open(&bookmarks_location)
+        };
+
+        match bookmarks_file {
+          Ok(file) => Ok(file),
+          Err(error) => match error.kind() {
+            ErrorKind::NotFound => {
+              let bookmarks_path = Path::new(&bookmarks_location);
+              let prefix = bookmarks_path.parent().unwrap();
+
+              // Create folder for bookmarks and then file
+              match std::fs::create_dir_all(prefix) {
+                Ok(_) => {
+                  match File::create(bookmarks_location.to_string()) {
+                    Ok(created_file) => Ok(created_file),
+                    Err(e) => {
+                      Err(format!("Problem creating the bookmarks file: {:?}", e))
+                    }
+                  }
+                }
+                Err(e) => {
+                  Err(format!("Problem creating folder to store bookmarks file: {:?}", e))
+                }
+              }
+            }
+            _ => {
+              Err(format!("Problem reading the bookmarks file: {:?}", error))
+            }
+          }
+        }
+      },
+      Err(e) => {
+        Err(format!("Could not get path to bookmarks because $HOME is not set: {:?}", e))
+      },
+    }
+  }
+
+  fn load_bookmarks(&mut self) {
+    let f = self.open_bookmarks(false);
+    match f {
+      Ok(file) => {
+        let mut buf_reader = BufReader::new(file);
+        let mut contents = String::new();
+        match buf_reader.read_to_string(&mut contents) {
+          Ok(_) => {
+            let mut bookmarks: Vec<GopherURL> = Vec::new();
+            for line in contents.trim().split("\n") {
+              let url = GopherURL::from(line);
+              bookmarks.push(url);
+            }
+            self.bookmarks = bookmarks;
+          },
+          // This error may happen if the file has been created and has only
+          // write permission.
+          Err(_) => {
+            self.bookmarks = Vec::new();
+          }
+        }
+      },
+      Err(e) => {
+        println!("{}", e);
+        self.bookmarks = Vec::new();
+      }
+    }
+  }
+
+  fn save_bookmarks(&mut self) {
+    let f = self.open_bookmarks(true);
+    match f {
+      Ok(mut file) => {
+        for url in self.bookmarks.iter() {
+          writeln!(file, "{}", url.get_url().unwrap()).unwrap();
+        }
+      },
+      Err(e) => {
+        println!("{}", e);
+        self.bookmarks = Vec::new();
+      }
+    }
+  }
+
+  fn display_bookmarks(&self) {
+    if &self.bookmarks.len() > &0 {
+      println!("Bookmarks:");
+      for (index, link) in self.bookmarks.iter().enumerate() {
+        println!("[bk {}] {}", index, link.get_url().unwrap());
+      }
+    }
+    else {
+      println!("\nThere are no bookmarks");
+    }
+  }
 }
 
 fn main() {
   println!("Welcome to {}!", SOFTWARE_NAME.to_string());
 
   let mut state = ClientState {
+    bookmarks: Vec::new(),
     history: Vec::new(),
     last_response: GopherResponse::Text(GopherTextResponse::new())
   };
+  state.load_bookmarks();
 
   // Get directly page if URL provided as argument
   let args: Vec<String> = env::args().collect();
@@ -395,6 +506,47 @@ fn main() {
           println!("{}", msg);
           continue;
         },
+      }
+    }
+    else if command == "bookmarks" {
+      state.display_bookmarks();
+    }
+    else if command.starts_with("bookmarks ") {
+      let args = &command[10..];
+      if args.starts_with(char::is_numeric) {
+        let index = match args.parse::<usize>() {
+          Ok(i) => i,
+          Err(error) => {
+            println!("Could not parse the bookmarks index: {:?}", error);
+            continue;
+          }
+        };
+        if let Some(url) = state.bookmarks.get(index) {
+          // We need to url.clone() because the URL needs to be kept in the
+          // bookmarks and in the browsing history
+          manage_url_request(url.clone(), &mut state);
+        }
+        else {
+          println!("There is no bookmark at this index");
+        }
+      }
+      else if args.starts_with("add ") {
+        let url = GopherURL::from(&args[4..]);
+        state.bookmarks.push(url);
+        state.save_bookmarks();
+        state.display_bookmarks();
+      }
+      else if args.starts_with("rm ") {
+        let index = match args[3..].parse::<usize>() {
+          Ok(i) => i,
+          Err(error) => {
+            println!("Could not parse the bookmarks index: {:?}", error);
+            continue;
+          }
+        };
+        state.bookmarks.remove(index);
+        state.save_bookmarks();
+        state.display_bookmarks();
       }
     }
     else if command == "quit" {
@@ -675,6 +827,7 @@ mod tests_state {
     // Set initial state
     let current_page = GopherURL::from("gopher://khzae.net");
     let mut state = ClientState {
+      bookmarks: Vec::new(),
       history: Vec::new(),
       last_response: GopherResponse::Text(GopherTextResponse::new())
     };
@@ -686,6 +839,7 @@ mod tests_state {
     let expected_last_page_history = GopherURL::from("gopher://zaibatsu.circumlunar.space");
     let expected_previous_url = GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk");
     let mut expected_state = ClientState {
+      bookmarks: Vec::new(),
       history: Vec::new(),
       last_response: GopherResponse::Text(GopherTextResponse::new())
     };
