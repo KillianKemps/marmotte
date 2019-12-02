@@ -1,3 +1,4 @@
+use std::env;
 use std::net::{TcpStream};
 use std::io::{Read, Write, stdin};
 
@@ -329,6 +330,13 @@ fn main() {
     history: Vec::new(),
     last_response: GopherResponse::Text(GopherTextResponse::new())
   };
+
+  // Get directly page if URL provided as argument
+  let args: Vec<String> = env::args().collect();
+  if let Some(url) = args.get(1) {
+    let parsed_url = GopherURL::from(url);
+    manage_url_request(parsed_url, &mut state);
+  }
 
   loop {
     if let Some(last_url) = state.history.get(0) {
