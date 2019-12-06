@@ -432,6 +432,78 @@ impl ClientState {
   }
 }
 
+enum Commands {
+  Up,
+  Back,
+  GoURL(String),
+  GoIndex(String),
+  DisplayBookmarks,
+  AddBookmark(String),
+  RemoveBookmark(String),
+  GoBookmarkIndex(String),
+  Help,
+  Quit,
+}
+
+impl Commands {
+  fn parse(input: String) -> Result<Commands, String> {
+    let mut args = "".to_string();
+    let mut command = input.trim().to_string();
+    if let Some(index) = command.find(" ") {
+      args = command.split_off(index).trim().to_string();
+    }
+
+    match &command[..] {
+      "up" => Ok(Commands::Up),
+      "back" => Ok(Commands::Back),
+      "quit" => Ok(Commands::Quit),
+      "go" => {
+        if args == "" {
+          return Err("No URL to go to".to_string());
+        }
+        return Ok(Commands::GoURL(args))
+      },
+      "bk" | "bookmarks" if args == "" => Ok(Commands::DisplayBookmarks),
+      "bk" | "bookmarks" if args.starts_with(char::is_numeric) => {
+        return Ok(Commands::GoBookmarkIndex(args));
+      },
+      "bk" | "bookmarks" => {
+        // Parsing again to get subcommands
+        let mut command = args.clone();
+        if let Some(index) = command.find(" ") {
+          args = command.split_off(index).trim().to_string();
+        }
+        match &command[..] {
+          "add" => Ok(Commands::AddBookmark(args)),
+          "rm" => Ok(Commands::RemoveBookmark(args)),
+          _ => Err("Bookmark subcommand not found".to_string()),
+        }
+      },
+      _ => {
+        if command.starts_with(char::is_numeric) {
+          return Ok(Commands::GoIndex(command));
+        }
+        else {
+          return Ok(Commands::Help);
+        }
+      }
+    }
+  }
+
+  fn help() {
+    println!("Please enter one of the following commands:\n\
+              \tgo [url]: Go to this url\n\
+              \t[index]: Follow link index\n\
+              \tup: Go up one directory\n\
+              \tback: Go back previous page\n\
+              \tbk: List bookmarks\n\
+              \tbk [index]: Follow bookmark\n\
+              \tbk add: Add bookmark\n\
+              \tbk rm: Remove bookmark\n\
+              \tquit: Quit this program");
+  }
+}
+
 fn main() {
   println!("Welcome to {}!", SOFTWARE_NAME.to_string());
 
@@ -457,63 +529,60 @@ fn main() {
     }
     println!("Please enter command:");
 
-    let mut command = String::new();
-    stdin().read_line(&mut command)
+    let mut command_input = String::new();
+    stdin().read_line(&mut command_input)
       .expect("Failed to read line");
 
-    command = String::from(command.trim());
+    let command = Commands::parse(command_input);
 
-    if command.starts_with("get ") {
-      let url = GopherURL::from(&command[4..]);
-      manage_url_request(url, &mut state);
-    }
-    else if command.starts_with(char::is_numeric) {
-      match &state.last_response.get_link_url(&command) {
-        Ok(link_url) => {
-          let url = GopherURL::from(&link_url);
-          manage_url_request(url, &mut state);
-        },
-        Err(msg) => {
-          println!("{}", msg);
-          continue;
-        },
-      }
-    }
-    else if command == "up" {
-      match state.history.get(0) {
-        Some(last_url) => {
-          match last_url.get_url_parent_selector() {
-            Some(parent_url) => {
-              let url = GopherURL::from(&parent_url);
-              manage_url_request(url, &mut state);
-            },
-            None => {
-              println!("Seems there is no parent for this document");
-              continue;
-            },
-          }
-        },
-        None => {
-          println!("There is no current document");
-          continue;
+    match command {
+      Ok(Commands::GoURL(url)) => {
+        let gopher_url = GopherURL::from(&url);
+        manage_url_request(gopher_url, &mut state);
+      },
+      Ok(Commands::GoIndex(index)) => {
+        match &state.last_response.get_link_url(&index) {
+          Ok(link_url) => {
+            let url = GopherURL::from(&link_url);
+            manage_url_request(url, &mut state);
+          },
+          Err(msg) => {
+            println!("{}", msg);
+            continue;
+          },
         }
-      }
-    }
-    else if command == "back" {
-      match state.go_back() {
-        Ok(_msg) => {},
-        Err(msg) => {
-          println!("{}", msg);
-          continue;
-        },
-      }
-    }
-    else if command == "bookmarks" {
-      state.display_bookmarks();
-    }
-    else if command.starts_with("bookmarks ") {
-      let args = &command[10..];
-      if args.starts_with(char::is_numeric) {
+      },
+      Ok(Commands::Up) => {
+        match state.history.get(0) {
+          Some(last_url) => {
+            match last_url.get_url_parent_selector() {
+              Some(parent_url) => {
+                let url = GopherURL::from(&parent_url);
+                manage_url_request(url, &mut state);
+              },
+              None => {
+                println!("Seems there is no parent for this document");
+                continue;
+              },
+            }
+          },
+          None => {
+            println!("There is no current document");
+            continue;
+          }
+        }
+      },
+      Ok(Commands::Back) => {
+        match state.go_back() {
+          Ok(_msg) => {},
+          Err(msg) => {
+            println!("{}", msg);
+            continue;
+          },
+        }
+      },
+      Ok(Commands::DisplayBookmarks) => state.display_bookmarks(),
+      Ok(Commands::GoBookmarkIndex(args)) => {
         let index = match args.parse::<usize>() {
           Ok(i) => i,
           Err(error) => {
@@ -523,21 +592,21 @@ fn main() {
         };
         if let Some(url) = state.bookmarks.get(index) {
           // We need to url.clone() because the URL needs to be kept in the
-          // bookmarks and in the browsing history
+          // bookmarks AND in the browsing history
           manage_url_request(url.clone(), &mut state);
         }
         else {
           println!("There is no bookmark at this index");
         }
-      }
-      else if args.starts_with("add ") {
-        let url = GopherURL::from(&args[4..]);
+      },
+      Ok(Commands::AddBookmark(args)) => {
+        let url = GopherURL::from(&args);
         state.bookmarks.push(url);
         state.save_bookmarks();
         state.display_bookmarks();
-      }
-      else if args.starts_with("rm ") {
-        let index = match args[3..].parse::<usize>() {
+      },
+      Ok(Commands::RemoveBookmark(args)) => {
+        let index = match args.parse::<usize>() {
           Ok(i) => i,
           Err(error) => {
             println!("Could not parse the bookmarks index: {:?}", error);
@@ -547,20 +616,16 @@ fn main() {
         state.bookmarks.remove(index);
         state.save_bookmarks();
         state.display_bookmarks();
+      },
+      Err(msg) => println!("Command parsing error: {}", msg),
+      Ok(Commands::Quit) => {
+        println!("Goodbye!");
+        break;
+      },
+      _ => {
+        Commands::help();
+        continue;
       }
-    }
-    else if command == "quit" {
-      println!("Goodbye!");
-      break;
-    }
-    else {
-      println!("Please enter one of the following commands:\n\
-                \tget [url]: Get this url\n\
-                \t[index]: Follow link index\n\
-                \tup: Go up one directory\n\
-                \tback: Go back previous page\n\
-                \tquit: Quit this program");
-      continue;
     }
   }
 }
