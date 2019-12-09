@@ -2,6 +2,17 @@
 
 This Gopher client written in Rust will be kept minimalistic.
 
+## Installation
+Simply run this command
+```
+make install
+```
+
+## Usage
+```
+marmotte [url]
+```
+
 Available commands:
 ```
 get [url]: Get this url
@@ -15,7 +26,26 @@ bk rm: Remove bookmark
 quit: Quit this program
 ```
 
-Project features:
+Example:
+```
+$ marmotte
+Welcome to marmotte!
+Enter 'help' if you don't know how to start. Have a nice journey in the Gopherspace!
+
+marmotte> go zaibatsu.circumlunar.space
+		
+		           MARE   TRANQUILLITATIS   PEOPLE'S   CIRCUMLUNAR
+		    .       _____   _    ___ ____    _  _____ ____  _   _    '
+		           |__  /  / \  |_ _| __ )  / \|_   _/ ___|| | | |
+		             / /  / _ \  | ||  _ \ / _ \ | | \___ \| | | |
+		        *   / /_ / ___ \ | || |_) / ___ \| |  ___) | |_| |
+		           /____/_/   \_\___|____/_/   \_\_| |____/ \___/   .
+		
+		                Flagship Circumlunar Colony Est. 2018
+[…]
+```
+
+## Project features:
 - [x] Handle text resources (type 0)
 - [x] Handle Gopher menus (type 1)
 - [ ] Handle Gopher search (type 7)
