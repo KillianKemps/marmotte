@@ -258,8 +258,6 @@ impl GopherResponse {
 fn manage_url_request(url: GopherURL, state: &mut ClientState) {
   match TcpStream::connect(url.get_server()) {
     Ok(mut stream) => {
-      println!("Connected!\n");
-
       stream.write(format!("{}\r\n", url.selector).as_bytes()).unwrap();
 
       let mut buffer = String::new();
