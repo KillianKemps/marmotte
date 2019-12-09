@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, ErrorKind, Read, Write, stdin};
+use std::io::{self, BufReader, ErrorKind, Read, Write, stdin};
 use std::net::{TcpStream};
 use std::path::Path;
 
@@ -507,6 +507,7 @@ impl Commands {
 
 fn main() {
   println!("Welcome to {}!", SOFTWARE_NAME.to_string());
+  println!("Enter 'help' if you don't know how to start. Have a nice journey in the Gopherspace!\n");
 
   let mut state = ClientState {
     bookmarks: Vec::new(),
@@ -528,7 +529,8 @@ fn main() {
         println!("\nCurrent page: {}", full_url);
       }
     }
-    println!("Please enter command:");
+    print!("{}> ", SOFTWARE_NAME.to_string());
+    io::stdout().flush().unwrap();
 
     let mut command_input = String::new();
     stdin().read_line(&mut command_input)
