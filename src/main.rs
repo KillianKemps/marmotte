@@ -432,6 +432,7 @@ impl ClientState {
   }
 }
 
+#[derive(Debug, PartialEq)]
 enum Commands {
   Up,
   Back,
@@ -915,5 +916,83 @@ mod tests_state {
 
     assert_eq!(expected_state.history, state.history);
     assert_eq!(Ok(expected_previous_url), previous_url);
+  }
+}
+
+#[cfg(test)]
+mod tests_commands {
+  use super::*;
+
+  #[test]
+  fn should_parse_valid_commands() {
+    assert_eq!(Ok(Commands::Up), Commands::parse("up".to_string()));
+    assert_eq!(Ok(Commands::Back), Commands::parse("back".to_string()));
+    assert_eq!(Ok(Commands::Quit), Commands::parse("quit".to_string()));
+    assert_eq!(
+      Ok(Commands::GoURL("gopherpedia.com".to_string())),
+      Commands::parse("go gopherpedia.com".to_string())
+    );
+    assert_eq!(Ok(Commands::DisplayBookmarks),Commands::parse("bk".to_string()));
+    assert_eq!(
+      Ok(Commands::AddBookmark("gopherpedia.com".to_string())),
+      Commands::parse("bk add gopherpedia.com".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::RemoveBookmark("2".to_string())),
+      Commands::parse("bk rm 2".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::GoBookmarkIndex("2".to_string())),
+      Commands::parse("bk 2".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::GoIndex("2".to_string())),
+      Commands::parse("2".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::Help),
+      Commands::parse("help".to_string())
+    );
+  }
+
+  #[test]
+  fn should_parse_commands_with_spaces() {
+    assert_eq!(Ok(Commands::Up), Commands::parse("  up  ".to_string()));
+    assert_eq!(Ok(Commands::Back), Commands::parse(" back ".to_string()));
+    assert_eq!(Ok(Commands::Quit), Commands::parse("  quit   ".to_string()));
+    assert_eq!(
+      Ok(Commands::GoURL("gopherpedia.com".to_string())),
+      Commands::parse("go   gopherpedia.com".to_string())
+    );
+    assert_eq!(Ok(Commands::DisplayBookmarks),Commands::parse("bk".to_string()));
+    assert_eq!(
+      Ok(Commands::AddBookmark("gopherpedia.com".to_string())),
+      Commands::parse("bk   add   gopherpedia.com".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::RemoveBookmark("2".to_string())),
+      Commands::parse("bk   rm   2  ".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::GoBookmarkIndex("2".to_string())),
+      Commands::parse("bk   2 ".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::GoIndex("2".to_string())),
+      Commands::parse("  2 ".to_string())
+    );
+    assert_eq!(
+      Ok(Commands::Help),
+      Commands::parse("help  ".to_string())
+    );
+  }
+
+  #[test]
+  fn should_ignore_invalid_commands() {
+    assert_eq!(Ok(Commands::Help), Commands::parse("fly me to the moon".to_string()));
+    assert_eq!(
+      Err("Bookmark subcommand not found".to_string()),
+      Commands::parse("bk something".to_string())
+    );
   }
 }
