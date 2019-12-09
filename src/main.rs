@@ -5,6 +5,7 @@ use std::net::{TcpStream};
 use std::path::Path;
 
 const SOFTWARE_NAME: &str = "marmotte";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone)]
 struct GopherURL {
@@ -504,7 +505,7 @@ impl Commands {
 }
 
 fn main() {
-  println!("Welcome to {}!", SOFTWARE_NAME.to_string());
+  println!("Welcome to {} v{}!", SOFTWARE_NAME.to_string(), VERSION.to_string());
   println!("Enter 'help' if you don't know how to start. Have a nice journey in the Gopherspace!\n");
 
   let mut state = ClientState {
