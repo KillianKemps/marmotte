@@ -103,16 +103,45 @@ struct GopherMenuLine {
 }
 
 impl GopherMenuLine {
-  fn from(line: &str) -> GopherMenuLine {
+  fn from(line: &str) -> Result<GopherMenuLine, String> {
     let splitted_elements: Vec<&str> = line.split("\t").collect();
+    // Can't panick as we should at least have an empty item in the vector
+    let first_element = splitted_elements[0];
 
-    GopherMenuLine {
-      r#type: splitted_elements[0][0..1].to_string(),
-      description: splitted_elements[0][1..].to_string(),
-      selector: splitted_elements[1].to_string(),
-      host: splitted_elements[2].to_string(),
-      port: splitted_elements[3].to_string()
-    }
+    let item_type = match first_element.get(0..1) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse item type in: \"{}\"", line))
+    };
+
+    // Note: can't return an error because the description will be at least
+    // empty if we could already parse the item type before
+    let description = match first_element.get(1..) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse description in: \"{}\"", line))
+    };
+
+    let selector = match splitted_elements.get(1) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse selector in: \"{}\"", line))
+    };
+
+    let host = match splitted_elements.get(2) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse host in: \"{}\"", line))
+    };
+
+    let port = match splitted_elements.get(3) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse port in: \"{}\"", line))
+    };
+
+    Ok(GopherMenuLine {
+      r#type: item_type,
+      description: description,
+      selector: selector,
+      host: host,
+      port: port
+    })
   }
 
   fn get_url(&self) -> String {
@@ -127,7 +156,7 @@ impl GopherMenuLine {
 
 #[derive(Clone)]
 struct GopherMenuResponse {
-  lines: Vec<GopherMenuLine>,
+  lines: Vec<Result<GopherMenuLine, String>>,
   links: Vec<usize>,
 }
 
@@ -145,8 +174,10 @@ impl GopherMenuResponse {
       let gopherline = GopherMenuLine::from(line);
 
       // We detect lines which are links and push them into dedicated vector
-      if ["0".to_string(), "1".to_string()].contains(&gopherline.r#type) {
-        links.push(index);
+      if let Ok(gopherline) = &gopherline {
+        if ["0".to_string(), "1".to_string()].contains(&gopherline.r#type) {
+          links.push(index);
+        }
       }
 
       lines.push(gopherline);
@@ -205,26 +236,31 @@ impl GopherResponse {
       },
       GopherResponse::Menu(response) => {
         for (index, line) in response.lines.iter().enumerate() {
-          match &line.r#type[..] {
-            "0" => {
-              let resource_type = "TXT";
-              // We increase the link index by 1 for a more user-friendly display
-              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
-              println!("{}\t[{}]\t{}", resource_type, displayed_index.to_string(), line.description);
+          match line {
+            Ok(line) => {
+              match &line.r#type[..] {
+                "0" => {
+                  let resource_type = "TXT";
+                  // We increase the link index by 1 for a more user-friendly display
+                  let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
+                  println!("{}\t[{}]\t{}", resource_type, displayed_index.to_string(), line.description);
+                },
+                "1" => {
+                  let resource_type = "MENU";
+                  // We increase the link index by 1 for a more user-friendly display
+                  let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
+                  println!("{}\t[{}]\t{}/", resource_type, displayed_index.to_string(), line.description);
+                },
+                "i" => {
+                  println!("\t\t{}", line.description);
+                },
+                _ => {
+                  let resource_type = "UNKNOWN";
+                  println!("{}\t\t{}", resource_type, line.description);
+                },
+              }
             },
-            "1" => {
-              let resource_type = "MENU";
-              // We increase the link index by 1 for a more user-friendly display
-              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
-              println!("{}\t[{}]\t{}/", resource_type, displayed_index.to_string(), line.description);
-            },
-            "i" => {
-              println!("\t\t{}", line.description);
-            },
-            _ => {
-              let resource_type = "UNKNOWN";
-              println!("{}\t\t{}", resource_type, line.description);
-            },
+            Err(line) => println!("ERR\t\tmarmotte: Problem parsing line {}: {}", index, line)
           }
         }
       }
@@ -243,8 +279,10 @@ impl GopherResponse {
               return Err("Given index is out of bounds".to_string());
             }
             let link_pointer:usize = response.links[index - 1];
-            let link = &response.lines[link_pointer];
-            return Ok(link.get_url())
+            match &response.lines[link_pointer] {
+              Ok(link) => Ok(link.get_url()),
+              Err(msg) => Err(format!("Chosen link as an issue: {}", msg))
+            }
           }
         }
       },
@@ -763,7 +801,7 @@ mod tests_gopher_menu_line {
       description: "Floodgap Home".to_string()
     };
     // Menu line
-    assert_eq!(expected, GopherMenuLine::from("1Floodgap Home	/home	gopher.floodgap.com	70"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("1Floodgap Home	/home	gopher.floodgap.com	70"));
 
     expected = GopherMenuLine {
       host: "error.host".to_string(),
@@ -773,7 +811,7 @@ mod tests_gopher_menu_line {
       description: "              ,-.      .-,".to_string()
     };
     // Information line with graphics
-    assert_eq!(expected, GopherMenuLine::from("i              ,-.      .-,		error.host	1"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("i              ,-.      .-,		error.host	1"));
 
     expected = GopherMenuLine {
       host: "error.host".to_string(),
@@ -783,7 +821,7 @@ mod tests_gopher_menu_line {
       description: "Find movie showtimes by postal code/zip.".to_string()
     };
     // Information line with text
-    assert_eq!(expected, GopherMenuLine::from("iFind movie showtimes by postal code/zip.		error.host	1"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("iFind movie showtimes by postal code/zip.		error.host	1"));
 
     expected = GopherMenuLine {
       host: "khzae.net".to_string(),
@@ -793,7 +831,7 @@ mod tests_gopher_menu_line {
       description: "RFC 1436 (gopher protocol)".to_string()
     };
     // Text resource line
-    assert_eq!(expected, GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70"));
 
     expected = GopherMenuLine {
       host: "khzae.net".to_string(),
@@ -803,7 +841,7 @@ mod tests_gopher_menu_line {
       description: "Search dictionary".to_string()
     };
     // Search resource line
-    assert_eq!(expected, GopherMenuLine::from("7Search dictionary	/dict/search	khzae.net	70"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("7Search dictionary	/dict/search	khzae.net	70"));
 
     expected = GopherMenuLine {
       host: "host2".to_string(),
@@ -813,7 +851,7 @@ mod tests_gopher_menu_line {
       description: "Some file or other".to_string()
     };
     // Gopher+ Text resource line
-    assert_eq!(expected, GopherMenuLine::from("0Some file or other	moo selector	host2	70	+"));
+    assert_eq!(Ok(expected), GopherMenuLine::from("0Some file or other	moo selector	host2	70	+"));
   }
 
   #[test]
@@ -821,7 +859,30 @@ mod tests_gopher_menu_line {
     // get_url()
     assert_eq!(
       "gopher://khzae.net:70/0/rfc1436.txt".to_string(),
-      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").get_url()
+      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").unwrap().get_url()
+    );
+  }
+
+  #[test]
+  fn should_manage_parsing_errors() {
+    assert_eq!(
+      Err("Could not parse item type in: \"\t\t\'\'.                  ....                            \t70\"".to_string()),
+      GopherMenuLine::from("		''.                  ....                            	70")
+    );
+
+    assert_eq!(
+      Err("Could not parse selector in: \"idescription   \"".to_string()),
+      GopherMenuLine::from("idescription   ")
+    );
+
+    assert_eq!(
+      Err("Could not parse host in: \"idescription\tselector\"".to_string()),
+      GopherMenuLine::from("idescription	selector")
+    );
+
+    assert_eq!(
+      Err("Could not parse port in: \"ior taken the time to contribute in other way. false\tnull.host\t1\"".to_string()),
+      GopherMenuLine::from("ior taken the time to contribute in other way. false	null.host	1")
     );
   }
 }
