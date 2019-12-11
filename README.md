@@ -45,7 +45,7 @@ marmotte> go zaibatsu.circumlunar.space
 […]
 ```
 
-## Project features:
+## Project features
 - [x] Handle text resources (type 0)
 - [x] Handle Gopher menus (type 1)
 - [ ] Handle Gopher search (type 7)
@@ -55,3 +55,7 @@ marmotte> go zaibatsu.circumlunar.space
 - [ ] Follow links in text/markdown resources
 - [ ] Cache pages by default for fast and offline browsing
 - [ ] Connect with SSL/TLS when the remote server implements it
+
+## License
+This software is under the French free software [CeCILL License](LICENSE.md) which is equivalent to GNU GPL but under French Law.
+Author: Killian Kemps
