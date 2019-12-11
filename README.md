@@ -21,8 +21,8 @@ up: Go up one directory
 back: Go back previous page
 bk: List bookmarks
 bk [index]: Follow bookmark
-bk add: Add bookmark
-bk rm: Remove bookmark
+bk add [url]: Add bookmark
+bk rm [index]: Remove bookmark
 quit: Quit this program
 ```
 

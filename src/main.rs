@@ -536,8 +536,8 @@ impl Commands {
               \tback: Go back previous page\n\
               \tbk: List bookmarks\n\
               \tbk [index]: Follow bookmark\n\
-              \tbk add: Add bookmark\n\
-              \tbk rm: Remove bookmark\n\
+              \tbk add [url]: Add bookmark\n\
+              \tbk rm [index]: Remove bookmark\n\
               \tquit: Quit this program");
   }
 }
