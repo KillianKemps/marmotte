@@ -56,6 +56,9 @@ marmotte> go zaibatsu.circumlunar.space
 - [ ] Cache pages by default for fast and offline browsing
 - [ ] Connect with SSL/TLS when the remote server implements it
 
+## Contributing
+Do you want to contribute? Great! Please follow this [guide](CONTRIBUTING.md).
+
 ## License
 This software is under the French free software [CeCILL License](LICENSE.md) which is equivalent to GNU GPL but under French Law.
 Author: Killian Kemps
