@@ -1,10 +1,44 @@
+// Copyright © Killian Kemps (2019)
+//
+// Killian Kemps <developer@killiankemps.fr>
+//
+// This software is a computer program whose purpose is to communicate with
+// the Gopher protocol.
+//
+// This software is governed by the CeCILL license under French law and
+// abiding by the rules of distribution of free software.  You can  use,
+// modify and/ or redistribute the software under the terms of the CeCILL
+// license as circulated by CEA, CNRS and INRIA at the following URL
+// "http://www.cecill.info".
+//
+// As a counterpart to the access to the source code and  rights to copy,
+// modify and redistribute granted by the license, users are provided only
+// with a limited warranty  and the software's author,  the holder of the
+// economic rights,  and the successive licensors  have only  limited
+// liability.
+//
+// In this respect, the user's attention is drawn to the risks associated
+// with loading,  using,  modifying and/or developing or reproducing the
+// software by the user in light of its specific status of free software,
+// that may mean  that it is complicated to manipulate,  and  that  also
+// therefore means  that it is reserved for developers  and  experienced
+// professionals having in-depth computer knowledge. Users are therefore
+// encouraged to load and test the software's suitability as regards their
+// requirements in conditions enabling the security of their systems and/or
+// data to be ensured and,  more generally, to use and operate it in the
+// same conditions as regards security.
+//
+// The fact that you are presently reading this means that you have had
+// knowledge of the CeCILL license and that you accept its terms.
+
 use std::env;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, ErrorKind, Read, Write, stdin};
-use std::net::{TcpStream};
+use std::io::{self, stdin, BufReader, ErrorKind, Read, Write};
+use std::net::TcpStream;
 use std::path::Path;
 
 const SOFTWARE_NAME: &str = "marmotte";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone)]
 struct GopherURL {
@@ -42,8 +76,7 @@ impl GopherURL {
       let port_idx = url_elements[0].find(":").unwrap();
       parsed_gopher_url.host = url_elements[0][0..port_idx].to_string();
       parsed_gopher_url.port = url_elements[0][port_idx + 1..].to_string();
-    }
-    else {
+    } else {
       parsed_gopher_url.host = url_elements[0].to_string();
     }
 
@@ -57,7 +90,7 @@ impl GopherURL {
       // Concatenate "/" which has been removed by the previous .split()
       parsed_gopher_url.selector = "/".to_owned() + &elm.to_string();
     }
-    return parsed_gopher_url
+    return parsed_gopher_url;
   }
 
   fn get_server(&self) -> String {
@@ -67,9 +100,11 @@ impl GopherURL {
   fn get_url(&self) -> Option<String> {
     if &self.host == "" {
       return None;
-    }
-    else {
-      return Some(format!("gopher://{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector));
+    } else {
+      return Some(format!(
+        "gopher://{}:{}/{}{}",
+        &self.host, &self.port, &self.r#type, &self.selector
+      ));
     }
   }
 
@@ -80,12 +115,17 @@ impl GopherURL {
     // This means we are at the server root, so no parent.
     else if &self.selector == "" {
       return None;
-    }
-    else {
+    } else {
       match self.selector.trim_end_matches('/').rfind("/") {
         Some(idx) => {
-          return Some(format!("gopher://{}:{}/{}{}", &self.host, &self.port, "1", &self.selector[..idx]));
-        },
+          return Some(format!(
+            "gopher://{}:{}/{}{}",
+            &self.host,
+            &self.port,
+            "1",
+            &self.selector[..idx]
+          ));
+        }
         None => None,
       }
     }
@@ -102,31 +142,62 @@ struct GopherMenuLine {
 }
 
 impl GopherMenuLine {
-  fn from(line: &str) -> GopherMenuLine {
+  fn from(line: &str) -> Result<GopherMenuLine, String> {
     let splitted_elements: Vec<&str> = line.split("\t").collect();
+    // Can't panick as we should at least have an empty item in the vector
+    let first_element = splitted_elements[0];
 
-    GopherMenuLine {
-      r#type: splitted_elements[0][0..1].to_string(),
-      description: splitted_elements[0][1..].to_string(),
-      selector: splitted_elements[1].to_string(),
-      host: splitted_elements[2].to_string(),
-      port: splitted_elements[3].to_string()
-    }
+    let item_type = match first_element.get(0..1) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse item type in: \"{}\"", line)),
+    };
+
+    // Note: can't return an error because the description will be at least
+    // empty if we could already parse the item type before
+    let description = match first_element.get(1..) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse description in: \"{}\"", line)),
+    };
+
+    let selector = match splitted_elements.get(1) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse selector in: \"{}\"", line)),
+    };
+
+    let host = match splitted_elements.get(2) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse host in: \"{}\"", line)),
+    };
+
+    let port = match splitted_elements.get(3) {
+      Some(el) => el.to_string(),
+      None => return Err(format!("Could not parse port in: \"{}\"", line)),
+    };
+
+    Ok(GopherMenuLine {
+      r#type: item_type,
+      description: description,
+      selector: selector,
+      host: host,
+      port: port,
+    })
   }
 
   fn get_url(&self) -> String {
     if &self.host == "" {
       return String::new();
-    }
-    else {
-      return format!("gopher://{}:{}/{}{}", &self.host, &self.port, &self.r#type, &self.selector);
+    } else {
+      return format!(
+        "gopher://{}:{}/{}{}",
+        &self.host, &self.port, &self.r#type, &self.selector
+      );
     }
   }
 }
 
 #[derive(Clone)]
 struct GopherMenuResponse {
-  lines: Vec<GopherMenuLine>,
+  lines: Vec<Result<GopherMenuLine, String>>,
   links: Vec<usize>,
 }
 
@@ -144,17 +215,16 @@ impl GopherMenuResponse {
       let gopherline = GopherMenuLine::from(line);
 
       // We detect lines which are links and push them into dedicated vector
-      if ["0".to_string(), "1".to_string()].contains(&gopherline.r#type) {
-        links.push(index);
+      if let Ok(gopherline) = &gopherline {
+        if ["0".to_string(), "1".to_string()].contains(&gopherline.r#type) {
+          links.push(index);
+        }
       }
 
       lines.push(gopherline);
     }
 
-    GopherMenuResponse {
-      lines,
-      links,
-    }
+    GopherMenuResponse { lines, links }
   }
 }
 
@@ -165,9 +235,7 @@ struct GopherTextResponse {
 
 impl GopherTextResponse {
   fn new() -> GopherTextResponse {
-    GopherTextResponse {
-      lines: Vec::new(),
-    }
+    GopherTextResponse { lines: Vec::new() }
   }
 
   fn from(response: &str) -> GopherTextResponse {
@@ -182,9 +250,7 @@ impl GopherTextResponse {
       lines.push(line.to_string());
     }
 
-    GopherTextResponse {
-      lines,
-    }
+    GopherTextResponse { lines }
   }
 }
 
@@ -201,29 +267,46 @@ impl GopherResponse {
         for line in &response.lines {
           println!("{}", line);
         }
-      },
+      }
       GopherResponse::Menu(response) => {
         for (index, line) in response.lines.iter().enumerate() {
-          match &line.r#type[..] {
-            "0" => {
-              let resource_type = "TXT";
-              // We increase the link index by 1 for a more user-friendly display
-              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
-              println!("{}\t[{}]\t{}", resource_type, displayed_index.to_string(), line.description);
-            },
-            "1" => {
-              let resource_type = "MENU";
-              // We increase the link index by 1 for a more user-friendly display
-              let displayed_index = response.links.iter().position(|&x| x == index).unwrap() + 1;
-              println!("{}\t[{}]\t{}/", resource_type, displayed_index.to_string(), line.description);
-            },
-            "i" => {
-              println!("\t\t{}", line.description);
-            },
-            _ => {
-              let resource_type = "UNKNOWN";
-              println!("{}\t\t{}", resource_type, line.description);
-            },
+          match line {
+            Ok(line) => {
+              match &line.r#type[..] {
+                "0" => {
+                  let resource_type = "TXT";
+                  // We increase the link index by 1 for a more user-friendly display
+                  let displayed_index =
+                    response.links.iter().position(|&x| x == index).unwrap() + 1;
+                  println!(
+                    "{}\t[{}]\t{}",
+                    resource_type,
+                    displayed_index.to_string(),
+                    line.description
+                  );
+                }
+                "1" => {
+                  let resource_type = "MENU";
+                  // We increase the link index by 1 for a more user-friendly display
+                  let displayed_index =
+                    response.links.iter().position(|&x| x == index).unwrap() + 1;
+                  println!(
+                    "{}\t[{}]\t{}/",
+                    resource_type,
+                    displayed_index.to_string(),
+                    line.description
+                  );
+                }
+                "i" => {
+                  println!("\t\t{}", line.description);
+                }
+                _ => {
+                  let resource_type = "UNKNOWN";
+                  println!("{}\t\t{}", resource_type, line.description);
+                }
+              }
+            }
+            Err(line) => println!("ERR\t\tmarmotte: Problem parsing line {}: {}", index, line),
           }
         }
       }
@@ -235,18 +318,23 @@ impl GopherResponse {
     let idx = link_idx.parse::<usize>();
     match idx {
       Ok(index) => {
-        match &self { GopherResponse::Text(_response) => Err("There is no link in the current document".to_string()),
+        match &self {
+          GopherResponse::Text(_response) => {
+            Err("There is no link in the current document".to_string())
+          }
           GopherResponse::Menu(response) => {
             // Check if the given index is out of bounds
             if index == 0 || response.links.len() < index {
               return Err("Given index is out of bounds".to_string());
             }
-            let link_pointer:usize = response.links[index - 1];
-            let link = &response.lines[link_pointer];
-            return Ok(link.get_url())
+            let link_pointer: usize = response.links[index - 1];
+            match &response.lines[link_pointer] {
+              Ok(link) => Ok(link.get_url()),
+              Err(msg) => Err(format!("Chosen link as an issue: {}", msg)),
+            }
           }
         }
-      },
+      }
       Err(_error) => {
         // May happen when index is negative
         return Err("Link index can't be negative".to_string());
@@ -258,7 +346,9 @@ impl GopherResponse {
 fn manage_url_request(url: GopherURL, state: &mut ClientState) {
   match TcpStream::connect(url.get_server()) {
     Ok(mut stream) => {
-      stream.write(format!("{}\r\n", url.selector).as_bytes()).unwrap();
+      stream
+        .write(format!("{}\r\n", url.selector).as_bytes())
+        .unwrap();
 
       let mut buffer = String::new();
 
@@ -267,19 +357,18 @@ fn manage_url_request(url: GopherURL, state: &mut ClientState) {
           // Parse Gopher menu according to Gopher selector
           if url.r#type == "1" {
             state.last_response = GopherResponse::Menu(GopherMenuResponse::from(&buffer));
-          }
-          else {
+          } else {
             state.last_response = GopherResponse::Text(GopherTextResponse::from(&buffer));
           }
           state.last_response.display();
           // Insert displayed page to history
           state.history.insert(0, url);
-        },
+        }
         Err(e) => {
           println!("Failed to receive data: {}", e);
         }
       }
-    },
+    }
     Err(e) => {
       println!("Failed to connect: {}", e);
     }
@@ -290,7 +379,7 @@ fn manage_url_request(url: GopherURL, state: &mut ClientState) {
 struct ClientState {
   bookmarks: Vec<GopherURL>,
   history: Vec<GopherURL>,
-  last_response: GopherResponse
+  last_response: GopherResponse,
 }
 
 impl ClientState {
@@ -306,7 +395,7 @@ impl ClientState {
         // Remove last url
         self.history.remove(0);
         return Ok(previous_url);
-      },
+      }
       None => {
         return Err("There is no previous document to go back".to_string());
       }
@@ -320,7 +409,7 @@ impl ClientState {
         // Load previous url
         manage_url_request(previous_url, self);
         return Ok("Went back to previous document".to_string());
-      },
+      }
       Err(msg) => {
         return Err(msg);
       }
@@ -333,9 +422,11 @@ impl ClientState {
       Ok(home) => {
         let bookmarks_location = format!("{}/.{}/bookmarks.txt", home, SOFTWARE_NAME);
         let bookmarks_file = if write {
-          OpenOptions::new().write(true).truncate(true).open(&bookmarks_location)
-        }
-        else {
+          OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&bookmarks_location)
+        } else {
           File::open(&bookmarks_location)
         };
 
@@ -348,28 +439,24 @@ impl ClientState {
 
               // Create folder for bookmarks and then file
               match std::fs::create_dir_all(prefix) {
-                Ok(_) => {
-                  match File::create(bookmarks_location.to_string()) {
-                    Ok(created_file) => Ok(created_file),
-                    Err(e) => {
-                      Err(format!("Problem creating the bookmarks file: {:?}", e))
-                    }
-                  }
-                }
-                Err(e) => {
-                  Err(format!("Problem creating folder to store bookmarks file: {:?}", e))
-                }
+                Ok(_) => match File::create(bookmarks_location.to_string()) {
+                  Ok(created_file) => Ok(created_file),
+                  Err(e) => Err(format!("Problem creating the bookmarks file: {:?}", e)),
+                },
+                Err(e) => Err(format!(
+                  "Problem creating folder to store bookmarks file: {:?}",
+                  e
+                )),
               }
             }
-            _ => {
-              Err(format!("Problem reading the bookmarks file: {:?}", error))
-            }
-          }
+            _ => Err(format!("Problem reading the bookmarks file: {:?}", error)),
+          },
         }
-      },
-      Err(e) => {
-        Err(format!("Could not get path to bookmarks because $HOME is not set: {:?}", e))
-      },
+      }
+      Err(e) => Err(format!(
+        "Could not get path to bookmarks because $HOME is not set: {:?}",
+        e
+      )),
     }
   }
 
@@ -387,14 +474,14 @@ impl ClientState {
               bookmarks.push(url);
             }
             self.bookmarks = bookmarks;
-          },
+          }
           // This error may happen if the file has been created and has only
           // write permission.
           Err(_) => {
             self.bookmarks = Vec::new();
           }
         }
-      },
+      }
       Err(e) => {
         println!("{}", e);
         self.bookmarks = Vec::new();
@@ -409,7 +496,7 @@ impl ClientState {
         for url in self.bookmarks.iter() {
           writeln!(file, "{}", url.get_url().unwrap()).unwrap();
         }
-      },
+      }
       Err(e) => {
         println!("{}", e);
         self.bookmarks = Vec::new();
@@ -423,8 +510,7 @@ impl ClientState {
       for (index, link) in self.bookmarks.iter().enumerate() {
         println!("[bk {}] {}", index, link.get_url().unwrap());
       }
-    }
-    else {
+    } else {
       println!("\nThere are no bookmarks");
     }
   }
@@ -460,12 +546,12 @@ impl Commands {
         if args == "" {
           return Err("No URL to go to".to_string());
         }
-        return Ok(Commands::GoURL(args))
-      },
+        return Ok(Commands::GoURL(args));
+      }
       "bk" | "bookmarks" if args == "" => Ok(Commands::DisplayBookmarks),
       "bk" | "bookmarks" if args.starts_with(char::is_numeric) => {
         return Ok(Commands::GoBookmarkIndex(args));
-      },
+      }
       "bk" | "bookmarks" => {
         // Parsing again to get subcommands
         let mut command = args.clone();
@@ -477,12 +563,11 @@ impl Commands {
           "rm" => Ok(Commands::RemoveBookmark(args)),
           _ => Err("Bookmark subcommand not found".to_string()),
         }
-      },
+      }
       _ => {
         if command.starts_with(char::is_numeric) {
           return Ok(Commands::GoIndex(command));
-        }
-        else {
+        } else {
           return Ok(Commands::Help);
         }
       }
@@ -490,27 +575,35 @@ impl Commands {
   }
 
   fn help() {
-    println!("Please enter one of the following commands:\n\
-              \tgo [url]: Go to this url\n\
-              \t[index]: Follow link index\n\
-              \tup: Go up one directory\n\
-              \tback: Go back previous page\n\
-              \tbk: List bookmarks\n\
-              \tbk [index]: Follow bookmark\n\
-              \tbk add: Add bookmark\n\
-              \tbk rm: Remove bookmark\n\
-              \tquit: Quit this program");
+    println!(
+      "Please enter one of the following commands:\n\
+       \tgo [url]: Go to this url\n\
+       \t[index]: Follow link index\n\
+       \tup: Go up one directory\n\
+       \tback: Go back previous page\n\
+       \tbk: List bookmarks\n\
+       \tbk [index]: Follow bookmark\n\
+       \tbk add [url]: Add bookmark\n\
+       \tbk rm [index]: Remove bookmark\n\
+       \tquit: Quit this program"
+    );
   }
 }
 
 fn main() {
-  println!("Welcome to {}!", SOFTWARE_NAME.to_string());
-  println!("Enter 'help' if you don't know how to start. Have a nice journey in the Gopherspace!\n");
+  println!(
+    "Welcome to {} v{}!",
+    SOFTWARE_NAME.to_string(),
+    VERSION.to_string()
+  );
+  println!(
+    "Enter 'help' if you don't know how to start. Have a nice journey in the Gopherspace!\n"
+  );
 
   let mut state = ClientState {
     bookmarks: Vec::new(),
     history: Vec::new(),
-    last_response: GopherResponse::Text(GopherTextResponse::new())
+    last_response: GopherResponse::Text(GopherTextResponse::new()),
   };
   state.load_bookmarks();
 
@@ -531,7 +624,8 @@ fn main() {
     io::stdout().flush().unwrap();
 
     let mut command_input = String::new();
-    stdin().read_line(&mut command_input)
+    stdin()
+      .read_line(&mut command_input)
       .expect("Failed to read line");
 
     let command = Commands::parse(command_input);
@@ -540,46 +634,38 @@ fn main() {
       Ok(Commands::GoURL(url)) => {
         let gopher_url = GopherURL::from(&url);
         manage_url_request(gopher_url, &mut state);
-      },
-      Ok(Commands::GoIndex(index)) => {
-        match &state.last_response.get_link_url(&index) {
-          Ok(link_url) => {
-            let url = GopherURL::from(&link_url);
-            manage_url_request(url, &mut state);
-          },
-          Err(msg) => {
-            println!("{}", msg);
-            continue;
-          },
+      }
+      Ok(Commands::GoIndex(index)) => match &state.last_response.get_link_url(&index) {
+        Ok(link_url) => {
+          let url = GopherURL::from(&link_url);
+          manage_url_request(url, &mut state);
+        }
+        Err(msg) => {
+          println!("{}", msg);
+          continue;
         }
       },
-      Ok(Commands::Up) => {
-        match state.history.get(0) {
-          Some(last_url) => {
-            match last_url.get_url_parent_selector() {
-              Some(parent_url) => {
-                let url = GopherURL::from(&parent_url);
-                manage_url_request(url, &mut state);
-              },
-              None => {
-                println!("Seems there is no parent for this document");
-                continue;
-              },
-            }
-          },
+      Ok(Commands::Up) => match state.history.get(0) {
+        Some(last_url) => match last_url.get_url_parent_selector() {
+          Some(parent_url) => {
+            let url = GopherURL::from(&parent_url);
+            manage_url_request(url, &mut state);
+          }
           None => {
-            println!("There is no current document");
+            println!("Seems there is no parent for this document");
             continue;
           }
+        },
+        None => {
+          println!("There is no current document");
+          continue;
         }
       },
-      Ok(Commands::Back) => {
-        match state.go_back() {
-          Ok(_msg) => {},
-          Err(msg) => {
-            println!("{}", msg);
-            continue;
-          },
+      Ok(Commands::Back) => match state.go_back() {
+        Ok(_msg) => {}
+        Err(msg) => {
+          println!("{}", msg);
+          continue;
         }
       },
       Ok(Commands::DisplayBookmarks) => state.display_bookmarks(),
@@ -595,17 +681,16 @@ fn main() {
           // We need to url.clone() because the URL needs to be kept in the
           // bookmarks AND in the browsing history
           manage_url_request(url.clone(), &mut state);
-        }
-        else {
+        } else {
           println!("There is no bookmark at this index");
         }
-      },
+      }
       Ok(Commands::AddBookmark(args)) => {
         let url = GopherURL::from(&args);
         state.bookmarks.push(url);
         state.save_bookmarks();
         state.display_bookmarks();
-      },
+      }
       Ok(Commands::RemoveBookmark(args)) => {
         let index = match args.parse::<usize>() {
           Ok(i) => i,
@@ -617,12 +702,12 @@ fn main() {
         state.bookmarks.remove(index);
         state.save_bookmarks();
         state.display_bookmarks();
-      },
+      }
       Err(msg) => println!("Command parsing error: {}", msg),
       Ok(Commands::Quit) => {
         println!("Goodbye!");
         break;
-      },
+      }
       _ => {
         Commands::help();
         continue;
@@ -637,10 +722,10 @@ mod tests_gopher_url {
 
   impl PartialEq for GopherURL {
     fn eq(&self, other: &Self) -> bool {
-      self.host == other.host &&
-      self.port == other.port &&
-      self.r#type == other.r#type &&
-      self.selector == other.selector
+      self.host == other.host
+        && self.port == other.port
+        && self.r#type == other.r#type
+        && self.selector == other.selector
     }
   }
 
@@ -650,22 +735,34 @@ mod tests_gopher_url {
       host: "zaibatsu.circumlunar.space".to_string(),
       port: "70".to_string(),
       r#type: "1".to_string(),
-      selector: "/~solderpunk/".to_string()
+      selector: "/~solderpunk/".to_string(),
     };
     // Complete Gopher URL
-    assert_eq!(expected, GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/"));
+    assert_eq!(
+      expected,
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/")
+    );
     // Without gopher://
-    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space:70/1/~solderpunk/"));
+    assert_eq!(
+      expected,
+      GopherURL::from("zaibatsu.circumlunar.space:70/1/~solderpunk/")
+    );
     // With gopher:// but without port number
-    assert_eq!(expected, GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk/"));
+    assert_eq!(
+      expected,
+      GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk/")
+    );
     // Without gopher:// and without port number
-    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space/1/~solderpunk/"));
+    assert_eq!(
+      expected,
+      GopherURL::from("zaibatsu.circumlunar.space/1/~solderpunk/")
+    );
 
     expected = GopherURL {
       host: "zaibatsu.circumlunar.space".to_string(),
       port: "70".to_string(),
       r#type: "1".to_string(),
-      selector: "".to_string()
+      selector: "".to_string(),
     };
     // Hostname only
     assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space"));
@@ -674,16 +771,19 @@ mod tests_gopher_url {
       host: "zaibatsu.circumlunar.space".to_string(),
       port: "70".to_string(),
       r#type: "0".to_string(),
-      selector: "/~solderpunk/phlog/project-gemini.txt".to_string()
+      selector: "/~solderpunk/phlog/project-gemini.txt".to_string(),
     };
     // Text resource URL
-    assert_eq!(expected, GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt"));
+    assert_eq!(
+      expected,
+      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt")
+    );
 
     expected = GopherURL {
       host: "khzae.net".to_string(),
       port: "105".to_string(),
       r#type: "1".to_string(),
-      selector: "/".to_string()
+      selector: "/".to_string(),
     };
     // Non-standard port
     assert_eq!(expected, GopherURL::from("khzae.net:105/1/"));
@@ -718,22 +818,26 @@ mod tests_gopher_url {
     // Menu parent for a text resource
     assert_eq!(
       Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
-      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt").get_url_parent_selector()
+      GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt")
+        .get_url_parent_selector()
     );
     // Menu parent for a menu resource
     assert_eq!(
       Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk".to_string()),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog").get_url_parent_selector()
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog")
+        .get_url_parent_selector()
     );
     // Root menu parent for a menu resource
     assert_eq!(
       Some("gopher://zaibatsu.circumlunar.space:70/1".to_string()),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk").get_url_parent_selector()
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk")
+        .get_url_parent_selector()
     );
     // Root menu parent for a menu resource
     assert_eq!(
       Some("gopher://zaibatsu.circumlunar.space:70/1".to_string()),
-      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/").get_url_parent_selector()
+      GopherURL::from("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/")
+        .get_url_parent_selector()
     );
   }
 }
@@ -744,11 +848,11 @@ mod tests_gopher_menu_line {
 
   impl PartialEq for GopherMenuLine {
     fn eq(&self, other: &Self) -> bool {
-      self.host == other.host &&
-      self.port == other.port &&
-      self.r#type == other.r#type &&
-      self.selector == other.selector &&
-      self.description == other.description
+      self.host == other.host
+        && self.port == other.port
+        && self.r#type == other.r#type
+        && self.selector == other.selector
+        && self.description == other.description
     }
   }
 
@@ -759,60 +863,78 @@ mod tests_gopher_menu_line {
       port: "70".to_string(),
       r#type: "1".to_string(),
       selector: "/home".to_string(),
-      description: "Floodgap Home".to_string()
+      description: "Floodgap Home".to_string(),
     };
     // Menu line
-    assert_eq!(expected, GopherMenuLine::from("1Floodgap Home	/home	gopher.floodgap.com	70"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("1Floodgap Home	/home	gopher.floodgap.com	70")
+    );
 
     expected = GopherMenuLine {
       host: "error.host".to_string(),
       port: "1".to_string(),
       r#type: "i".to_string(),
       selector: "".to_string(),
-      description: "              ,-.      .-,".to_string()
+      description: "              ,-.      .-,".to_string(),
     };
     // Information line with graphics
-    assert_eq!(expected, GopherMenuLine::from("i              ,-.      .-,		error.host	1"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("i              ,-.      .-,		error.host	1")
+    );
 
     expected = GopherMenuLine {
       host: "error.host".to_string(),
       port: "1".to_string(),
       r#type: "i".to_string(),
       selector: "".to_string(),
-      description: "Find movie showtimes by postal code/zip.".to_string()
+      description: "Find movie showtimes by postal code/zip.".to_string(),
     };
     // Information line with text
-    assert_eq!(expected, GopherMenuLine::from("iFind movie showtimes by postal code/zip.		error.host	1"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("iFind movie showtimes by postal code/zip.		error.host	1")
+    );
 
     expected = GopherMenuLine {
       host: "khzae.net".to_string(),
       port: "70".to_string(),
       r#type: "0".to_string(),
       selector: "/rfc1436.txt".to_string(),
-      description: "RFC 1436 (gopher protocol)".to_string()
+      description: "RFC 1436 (gopher protocol)".to_string(),
     };
     // Text resource line
-    assert_eq!(expected, GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70")
+    );
 
     expected = GopherMenuLine {
       host: "khzae.net".to_string(),
       port: "70".to_string(),
       r#type: "7".to_string(),
       selector: "/dict/search".to_string(),
-      description: "Search dictionary".to_string()
+      description: "Search dictionary".to_string(),
     };
     // Search resource line
-    assert_eq!(expected, GopherMenuLine::from("7Search dictionary	/dict/search	khzae.net	70"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("7Search dictionary	/dict/search	khzae.net	70")
+    );
 
     expected = GopherMenuLine {
       host: "host2".to_string(),
       port: "70".to_string(),
       r#type: "0".to_string(),
       selector: "moo selector".to_string(),
-      description: "Some file or other".to_string()
+      description: "Some file or other".to_string(),
     };
     // Gopher+ Text resource line
-    assert_eq!(expected, GopherMenuLine::from("0Some file or other	moo selector	host2	70	+"));
+    assert_eq!(
+      Ok(expected),
+      GopherMenuLine::from("0Some file or other	moo selector	host2	70	+")
+    );
   }
 
   #[test]
@@ -820,7 +942,32 @@ mod tests_gopher_menu_line {
     // get_url()
     assert_eq!(
       "gopher://khzae.net:70/0/rfc1436.txt".to_string(),
-      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70").get_url()
+      GopherMenuLine::from("0RFC 1436 (gopher protocol)	/rfc1436.txt	khzae.net	70")
+        .unwrap()
+        .get_url()
+    );
+  }
+
+  #[test]
+  fn should_manage_parsing_errors() {
+    assert_eq!(
+      Err("Could not parse item type in: \"\t\t\'\'.                  ....                            \t70\"".to_string()),
+      GopherMenuLine::from("		''.                  ....                            	70")
+    );
+
+    assert_eq!(
+      Err("Could not parse selector in: \"idescription   \"".to_string()),
+      GopherMenuLine::from("idescription   ")
+    );
+
+    assert_eq!(
+      Err("Could not parse host in: \"idescription\tselector\"".to_string()),
+      GopherMenuLine::from("idescription	selector")
+    );
+
+    assert_eq!(
+      Err("Could not parse port in: \"ior taken the time to contribute in other way. false\tnull.host\t1\"".to_string()),
+      GopherMenuLine::from("ior taken the time to contribute in other way. false	null.host	1")
     );
   }
 }
@@ -832,13 +979,13 @@ mod tests_gopher_menu_response {
   #[test]
   fn should_return_right_link() {
     let response = "\
-isome test		error.host	1\r\n\
-i 		error.host	1\r\n\
-1About	/about	khzae.net	70\r\n\
-i 		error.host	1\r\n\
-1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
-0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
-.";
+                    isome test		error.host	1\r\n\
+                    i 		error.host	1\r\n\
+                    1About	/about	khzae.net	70\r\n\
+                    i 		error.host	1\r\n\
+                    1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
+                    0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
+                    .";
     let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
     assert_eq!(
       Ok("gopher://khzae.net:70/1/about".to_string()),
@@ -857,13 +1004,13 @@ i 		error.host	1\r\n\
   #[test]
   fn should_return_none_when_link_out_of_bounds() {
     let response = "\
-isome test		error.host	1\r\n\
-i 		error.host	1\r\n\
-1About	/about	khzae.net	70\r\n\
-i 		error.host	1\r\n\
-1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
-0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
-.";
+                    isome test		error.host	1\r\n\
+                    i 		error.host	1\r\n\
+                    1About	/about	khzae.net	70\r\n\
+                    i 		error.host	1\r\n\
+                    1Super Dimension Fortress (SDF)	/	sdf.org	70\r\n\
+                    0RFC 4266 (gopher URI scheme)	/rfc4266.txt	khzae.net	70\r\n\
+                    .";
     let parsed_response = GopherResponse::Menu(GopherMenuResponse::from(response));
     assert_eq!(
       Err("Link index can\'t be negative".to_string()),
@@ -895,19 +1042,25 @@ mod tests_state {
     let mut state = ClientState {
       bookmarks: Vec::new(),
       history: Vec::new(),
-      last_response: GopherResponse::Text(GopherTextResponse::new())
+      last_response: GopherResponse::Text(GopherTextResponse::new()),
     };
     state.history.insert(0, current_page);
-    state.history.insert(1, GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk"));
-    state.history.insert(2, GopherURL::from("gopher://zaibatsu.circumlunar.space"));
+    state.history.insert(
+      1,
+      GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk"),
+    );
+    state
+      .history
+      .insert(2, GopherURL::from("gopher://zaibatsu.circumlunar.space"));
 
     // Set expected state
     let expected_last_page_history = GopherURL::from("gopher://zaibatsu.circumlunar.space");
-    let expected_previous_url = GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk");
+    let expected_previous_url =
+      GopherURL::from("gopher://zaibatsu.circumlunar.space/1/~solderpunk");
     let mut expected_state = ClientState {
       bookmarks: Vec::new(),
       history: Vec::new(),
-      last_response: GopherResponse::Text(GopherTextResponse::new())
+      last_response: GopherResponse::Text(GopherTextResponse::new()),
     };
     expected_state.history.push(expected_last_page_history);
 
@@ -932,7 +1085,10 @@ mod tests_commands {
       Ok(Commands::GoURL("gopherpedia.com".to_string())),
       Commands::parse("go gopherpedia.com".to_string())
     );
-    assert_eq!(Ok(Commands::DisplayBookmarks),Commands::parse("bk".to_string()));
+    assert_eq!(
+      Ok(Commands::DisplayBookmarks),
+      Commands::parse("bk".to_string())
+    );
     assert_eq!(
       Ok(Commands::AddBookmark("gopherpedia.com".to_string())),
       Commands::parse("bk add gopherpedia.com".to_string())
@@ -949,10 +1105,7 @@ mod tests_commands {
       Ok(Commands::GoIndex("2".to_string())),
       Commands::parse("2".to_string())
     );
-    assert_eq!(
-      Ok(Commands::Help),
-      Commands::parse("help".to_string())
-    );
+    assert_eq!(Ok(Commands::Help), Commands::parse("help".to_string()));
   }
 
   #[test]
@@ -964,7 +1117,10 @@ mod tests_commands {
       Ok(Commands::GoURL("gopherpedia.com".to_string())),
       Commands::parse("go   gopherpedia.com".to_string())
     );
-    assert_eq!(Ok(Commands::DisplayBookmarks),Commands::parse("bk".to_string()));
+    assert_eq!(
+      Ok(Commands::DisplayBookmarks),
+      Commands::parse("bk".to_string())
+    );
     assert_eq!(
       Ok(Commands::AddBookmark("gopherpedia.com".to_string())),
       Commands::parse("bk   add   gopherpedia.com".to_string())
@@ -981,15 +1137,15 @@ mod tests_commands {
       Ok(Commands::GoIndex("2".to_string())),
       Commands::parse("  2 ".to_string())
     );
-    assert_eq!(
-      Ok(Commands::Help),
-      Commands::parse("help  ".to_string())
-    );
+    assert_eq!(Ok(Commands::Help), Commands::parse("help  ".to_string()));
   }
 
   #[test]
   fn should_ignore_invalid_commands() {
-    assert_eq!(Ok(Commands::Help), Commands::parse("fly me to the moon".to_string()));
+    assert_eq!(
+      Ok(Commands::Help),
+      Commands::parse("fly me to the moon".to_string())
+    );
     assert_eq!(
       Err("Bookmark subcommand not found".to_string()),
       Commands::parse("bk something".to_string())

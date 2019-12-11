@@ -8,6 +8,9 @@ help:
 run: ## Run locally for development
 	@cargo run
 
+fmt: ## Auto-format code locally
+	@cargo fmt
+
 test: ## Run tests
 	@cargo test
 

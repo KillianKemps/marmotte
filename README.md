@@ -3,7 +3,15 @@
 This Gopher client written in Rust will be kept minimalistic.
 
 ## Installation
-Simply run this command
+
+### First way
+
+You may download the latest binary on [Github's release page](https://github.com/KillianKemps/marmotte/releases) if available for your platform.
+And then copy the binary to `/usr/local/bin/marmotte` with the executable rights: `chmod +x /usr/local/bin/marmotte`.
+
+### Second way
+
+Clone this repository and simply run this command:
 ```
 make install
 ```
@@ -21,8 +29,8 @@ up: Go up one directory
 back: Go back previous page
 bk: List bookmarks
 bk [index]: Follow bookmark
-bk add: Add bookmark
-bk rm: Remove bookmark
+bk add [url]: Add bookmark
+bk rm [index]: Remove bookmark
 quit: Quit this program
 ```
 
@@ -45,7 +53,7 @@ marmotte> go zaibatsu.circumlunar.space
 […]
 ```
 
-## Project features:
+## Project features
 - [x] Handle text resources (type 0)
 - [x] Handle Gopher menus (type 1)
 - [ ] Handle Gopher search (type 7)
@@ -55,3 +63,10 @@ marmotte> go zaibatsu.circumlunar.space
 - [ ] Follow links in text/markdown resources
 - [ ] Cache pages by default for fast and offline browsing
 - [ ] Connect with SSL/TLS when the remote server implements it
+
+## Contributing
+Do you want to contribute? Great! Please follow this [guide](CONTRIBUTING.md).
+
+## License
+This software is under the French free software [CeCILL License](LICENSE.md) which is equivalent to GNU GPL but under French Law.
+Author: Killian Kemps
