@@ -3,7 +3,15 @@
 This Gopher client written in Rust will be kept minimalistic.
 
 ## Installation
-Simply run this command
+
+### First way
+
+You may download the latest binary on [Github's release page](https://github.com/KillianKemps/marmotte/releases) if available for your platform.
+And then copy the binary to `/usr/local/bin/marmotte` with the executable rights: `chmod +x /usr/local/bin/marmotte`.
+
+### Second way
+
+Clone this repository and simply run this command:
 ```
 make install
 ```
