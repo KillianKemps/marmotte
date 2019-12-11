@@ -26,6 +26,8 @@ To submit your contribution, please fork the project on Github, do the changes i
 
 When adding a new feature or fixing an important bug, please add tests with it in order to ensure to keep the quality of the software.
 
+Your code should be formatted according to the `cargo fmt` tool.
+
 When creating git commits, please give precise description in English of your modifications. Maintainers may change your contributions in order to have a clean git history and to display your name in the contributors list.
 
 ### Agreement
