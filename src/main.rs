@@ -122,7 +122,9 @@ impl GopherURL {
             &self.selector[..idx]
           ));
         }
-        None => None,
+        None => {
+          return Some(format!("gopher://{}:{}", &self.host, &self.port));
+        }
       }
     }
   }
@@ -828,6 +830,11 @@ mod tests_gopher_url {
       Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
       GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt")
         .get_url_parent_selector()
+    );
+    // Menu parent for a text resource without '/'
+    assert_eq!(
+      Some("gopher://alexschroeder.ch:70".to_string()),
+      GopherURL::from("gopher://alexschroeder.ch:70/0Alex_Schroeder").get_url_parent_selector()
     );
     // Menu parent for a menu resource
     assert_eq!(
