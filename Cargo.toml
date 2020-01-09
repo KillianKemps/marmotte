@@ -1,6 +1,6 @@
 [package]
 name = "marmotte"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Killian Kemps <developer@killiankemps.fr>"]
 edition = "2018"
 
