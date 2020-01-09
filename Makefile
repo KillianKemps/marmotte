@@ -22,3 +22,10 @@ install: build ## Install the binary into the PATH. Requires sudo.
 
 uninstall: ## Removes the binary from the PATH. Requires sudo.
 	@sudo rm /usr/local/bin/marmotte || echo "It seems marmotte wasn't installed"
+
+release_linux: ## Build for all targets
+	for target in i686-unknown-linux-musl x86_64-unknown-linux-musl x86_64-unknown-linux-gnu ; do \
+		rustup target add $$target ; \
+		cargo build --release --target $$target ; \
+		cp target/$${target}/release/marmotte marmotte-$${target} ; \
+	done
