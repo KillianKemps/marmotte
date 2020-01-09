@@ -68,7 +68,7 @@ impl GopherURL {
     // Create GopherURL variable to receive the URL
     let mut parsed_gopher_url = GopherURL::new();
     // Split URL on "/" in three first elements
-    let url_elements: Vec<&str> = parsed_url.splitn(3, "/").collect();
+    let url_elements: Vec<&str> = parsed_url.splitn(2, "/").collect();
 
     // Get host from URL and port if specified
     // If the URL contains a ":", it means the port is specified
@@ -80,16 +80,12 @@ impl GopherURL {
       parsed_gopher_url.host = url_elements[0].to_string();
     }
 
-    // Get resource type if specified
+    // Get resource type and selector if specified
     if let Some(elm) = url_elements.get(1) {
-      parsed_gopher_url.r#type = elm.to_string();
+      parsed_gopher_url.r#type = elm[0..1].to_string();
+      parsed_gopher_url.selector = elm[1..].to_string();
     }
 
-    // Get selector if specified
-    if let Some(elm) = url_elements.get(2) {
-      // Concatenate "/" which has been removed by the previous .split()
-      parsed_gopher_url.selector = "/".to_owned() + &elm.to_string();
-    }
     return parsed_gopher_url;
   }
 
@@ -126,7 +122,9 @@ impl GopherURL {
             &self.selector[..idx]
           ));
         }
-        None => None,
+        None => {
+          return Some(format!("gopher://{}:{}", &self.host, &self.port));
+        }
       }
     }
   }
@@ -787,6 +785,18 @@ mod tests_gopher_url {
     };
     // Non-standard port
     assert_eq!(expected, GopherURL::from("khzae.net:105/1/"));
+
+    expected = GopherURL {
+      host: "alexschroeder.ch".to_string(),
+      port: "70".to_string(),
+      r#type: "0".to_string(),
+      selector: "Alex_Schroeder".to_string(),
+    };
+    // Selector without '/'
+    assert_eq!(
+      expected,
+      GopherURL::from("gopher://alexschroeder.ch/0Alex_Schroeder")
+    );
   }
 
   #[test]
@@ -820,6 +830,11 @@ mod tests_gopher_url {
       Some("gopher://zaibatsu.circumlunar.space:70/1/~solderpunk/phlog".to_string()),
       GopherURL::from("zaibatsu.circumlunar.space/0/~solderpunk/phlog/project-gemini.txt")
         .get_url_parent_selector()
+    );
+    // Menu parent for a text resource without '/'
+    assert_eq!(
+      Some("gopher://alexschroeder.ch:70".to_string()),
+      GopherURL::from("gopher://alexschroeder.ch:70/0Alex_Schroeder").get_url_parent_selector()
     );
     // Menu parent for a menu resource
     assert_eq!(
